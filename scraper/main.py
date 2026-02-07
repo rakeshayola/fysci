@@ -1,8 +1,8 @@
 import os
 import time
 import logging
-from datetime import datetime
 
+import requests
 import schedule
 import yfinance as yf
 from sqlalchemy import create_engine, text
@@ -26,6 +26,16 @@ HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "1y")
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
 
 
+def _make_session():
+    """Create a requests session with browser-like headers."""
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    })
+    return s
+
+
 def get_tracked_symbols():
     """Fetch all stock symbols from the database."""
     with Session() as session:
@@ -33,50 +43,87 @@ def get_tracked_symbols():
         return [(row[0], row[1]) for row in rows]
 
 
-def scrape_stock(stock_id: int, symbol: str):
-    """Download price history for a single stock and upsert into the database."""
+def scrape_prices(symbol_map: dict[str, int]):
+    """Batch-download price history using yf.download() and upsert into the database."""
+    symbols = list(symbol_map.keys())
+    logger.info(f"Downloading prices for {len(symbols)} stocks...")
+
     try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=HISTORY_PERIOD)
+        df = yf.download(
+            symbols,
+            period=HISTORY_PERIOD,
+            group_by="ticker",
+            threads=False,
+            session=_make_session(),
+        )
+    except Exception:
+        logger.exception("yf.download() failed")
+        return 0
 
-        if hist.empty:
-            logger.warning(f"No data returned for {symbol}")
-            return 0
+    if df.empty:
+        logger.warning("yf.download() returned empty dataframe")
+        return 0
 
-        rows = []
-        for date, row in hist.iterrows():
-            rows.append({
-                "stock_id": stock_id,
-                "date": date.date(),
-                "open": round(float(row["Open"]), 4),
-                "high": round(float(row["High"]), 4),
-                "low": round(float(row["Low"]), 4),
-                "close": round(float(row["Close"]), 4),
-                "volume": int(row["Volume"]),
-            })
+    total = 0
+    with Session() as db_session:
+        for symbol in symbols:
+            stock_id = symbol_map[symbol]
+            try:
+                if len(symbols) == 1:
+                    stock_df = df
+                else:
+                    stock_df = df[symbol]
 
-        with Session() as session:
-            for r in rows:
-                session.execute(
-                    text("""
-                        INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
-                        VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
-                        ON CONFLICT (stock_id, date)
-                        DO UPDATE SET open = EXCLUDED.open,
-                                      high = EXCLUDED.high,
-                                      low  = EXCLUDED.low,
-                                      close = EXCLUDED.close,
-                                      volume = EXCLUDED.volume
-                    """),
-                    r,
-                )
-            session.commit()
+                stock_df = stock_df.dropna(subset=["Close"])
+                if stock_df.empty:
+                    logger.warning(f"{symbol}: no price rows after dropna")
+                    continue
 
-        logger.info(f"{symbol}: upserted {len(rows)} price rows")
+                for date_idx, row in stock_df.iterrows():
+                    db_session.execute(
+                        text("""
+                            INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+                            VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
+                            ON CONFLICT (stock_id, date)
+                            DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
+                                          low=EXCLUDED.low, close=EXCLUDED.close,
+                                          volume=EXCLUDED.volume
+                        """),
+                        {
+                            "stock_id": stock_id,
+                            "date": date_idx.date(),
+                            "open": round(float(row["Open"]), 4) if row.get("Open") else None,
+                            "high": round(float(row["High"]), 4) if row.get("High") else None,
+                            "low": round(float(row["Low"]), 4) if row.get("Low") else None,
+                            "close": round(float(row["Close"]), 4),
+                            "volume": int(row["Volume"]) if row.get("Volume") else 0,
+                        },
+                    )
+                total += len(stock_df)
+                logger.info(f"{symbol}: {len(stock_df)} price rows")
+            except Exception:
+                logger.exception(f"Error processing prices for {symbol}")
 
-        # Scrape financial data
+        db_session.commit()
+
+    logger.info(f"Prices done — {total} total rows upserted")
+    return total
+
+
+def scrape_financials(symbol_map: dict[str, int]):
+    """Fetch financial data for each stock using ticker.info."""
+    http_session = _make_session()
+    count = 0
+
+    for symbol, stock_id in symbol_map.items():
         try:
+            ticker = yf.Ticker(symbol, session=http_session)
             info = ticker.info or {}
+
+            if not info or info.get("quoteType") is None:
+                logger.warning(f"{symbol}: ticker.info returned empty, skipping financials")
+                continue
+
             fin_data = {
                 "stock_id": stock_id,
                 "pe_ratio": info.get("trailingPE"),
@@ -89,8 +136,9 @@ def scrape_stock(stock_id: int, symbol: str):
                 "num_employees": info.get("fullTimeEmployees"),
                 "earnings_per_share": info.get("trailingEps"),
             }
-            with Session() as session:
-                session.execute(
+
+            with Session() as db_session:
+                db_session.execute(
                     text("""
                         INSERT INTO stock_financials
                             (stock_id, pe_ratio, forward_pe, market_cap, total_debt,
@@ -113,27 +161,29 @@ def scrape_stock(stock_id: int, symbol: str):
                     """),
                     fin_data,
                 )
-                session.commit()
+                db_session.commit()
+
             logger.info(f"{symbol}: financials updated")
+            count += 1
         except Exception:
             logger.exception(f"Error scraping financials for {symbol}")
 
-        return len(rows)
+        time.sleep(2)  # rate-limit between ticker.info calls
 
-    except Exception:
-        logger.exception(f"Error scraping {symbol}")
-        return 0
+    logger.info(f"Financials done — {count}/{len(symbol_map)} stocks")
+    return count
 
 
 def run_scrape():
     """Scrape all tracked stocks."""
-    symbols = get_tracked_symbols()
-    logger.info(f"Starting scrape for {len(symbols)} stocks...")
-    total = 0
-    for stock_id, symbol in symbols:
-        total += scrape_stock(stock_id, symbol)
-        time.sleep(1)  # rate-limit between tickers
-    logger.info(f"Scrape complete — {total} total rows upserted")
+    tracked = get_tracked_symbols()
+    symbol_map = {symbol: stock_id for stock_id, symbol in tracked}
+    logger.info(f"Starting scrape for {len(symbol_map)} stocks...")
+
+    scrape_prices(symbol_map)
+    scrape_financials(symbol_map)
+
+    logger.info("Scrape complete")
 
 
 def wait_for_db(retries=30, delay=2):
