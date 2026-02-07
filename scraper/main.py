@@ -105,18 +105,44 @@ def scrape_prices(symbol_map: dict[str, int]):
     return total
 
 
+YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+
+
+def _fetch_yahoo_info(symbol: str, http_session: CffiSession) -> dict:
+    """Fetch financial info directly from Yahoo Finance API using curl_cffi."""
+    url = YAHOO_QUOTE_URL.format(symbol=symbol)
+    resp = http_session.get(url, params={"modules": YAHOO_MODULES})
+    resp.raise_for_status()
+    data = resp.json()
+    result = data.get("quoteSummary", {}).get("result")
+    if not result:
+        return {}
+    modules = result[0]
+    # Flatten the nested module dicts into one dict, extracting 'raw' values
+    flat = {}
+    for module in modules.values():
+        if not isinstance(module, dict):
+            continue
+        for key, val in module.items():
+            if isinstance(val, dict) and "raw" in val:
+                flat[key] = val["raw"]
+            elif not isinstance(val, (dict, list)):
+                flat[key] = val
+    return flat
+
+
 def scrape_financials(symbol_map: dict[str, int]):
-    """Fetch financial data for each stock using ticker.info."""
+    """Fetch financial data for each stock directly from Yahoo Finance API."""
     http_session = _make_session()
     count = 0
 
     for symbol, stock_id in symbol_map.items():
         try:
-            ticker = yf.Ticker(symbol, session=http_session)
-            info = ticker.info or {}
+            info = _fetch_yahoo_info(symbol, http_session)
 
-            if not info or info.get("quoteType") is None:
-                logger.warning(f"{symbol}: ticker.info returned empty, skipping financials")
+            if not info:
+                logger.warning(f"{symbol}: Yahoo API returned empty, skipping financials")
                 continue
 
             fin_data = {
@@ -126,8 +152,8 @@ def scrape_financials(symbol_map: dict[str, int]):
                 "market_cap": info.get("marketCap"),
                 "total_debt": info.get("totalDebt"),
                 "total_revenue": info.get("totalRevenue"),
-                "operating_expense": info.get("operatingExpense") or info.get("totalOperatingExpenses"),
-                "capital_expenditure": abs(info.get("capitalExpenditure") or info.get("capex") or 0) or None,
+                "operating_expense": info.get("operatingExpenses") or info.get("totalOperatingExpenses"),
+                "capital_expenditure": abs(info.get("capitalExpenditures") or info.get("capitalExpenditure") or 0) or None,
                 "num_employees": info.get("fullTimeEmployees"),
                 "earnings_per_share": info.get("trailingEps"),
             }
@@ -163,7 +189,7 @@ def scrape_financials(symbol_map: dict[str, int]):
         except Exception:
             logger.exception(f"Error scraping financials for {symbol}")
 
-        time.sleep(2)  # rate-limit between ticker.info calls
+        time.sleep(2)  # rate-limit between calls
 
     logger.info(f"Financials done — {count}/{len(symbol_map)} stocks")
     return count

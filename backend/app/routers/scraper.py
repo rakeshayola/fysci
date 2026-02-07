@@ -19,8 +19,34 @@ class ScrapeStatus(BaseModel):
     message: str
 
 
+YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+
+
 def _make_session():
     return CffiSession(impersonate="chrome")
+
+
+def _fetch_yahoo_info(symbol: str, http_session: CffiSession) -> dict:
+    """Fetch financial info directly from Yahoo Finance API."""
+    url = YAHOO_QUOTE_URL.format(symbol=symbol)
+    resp = http_session.get(url, params={"modules": YAHOO_MODULES})
+    resp.raise_for_status()
+    data = resp.json()
+    result = data.get("quoteSummary", {}).get("result")
+    if not result:
+        return {}
+    modules = result[0]
+    flat = {}
+    for module in modules.values():
+        if not isinstance(module, dict):
+            continue
+        for key, val in module.items():
+            if isinstance(val, dict) and "raw" in val:
+                flat[key] = val["raw"]
+            elif not isinstance(val, (dict, list)):
+                flat[key] = val
+    return flat
 
 
 @router.post("/run", response_model=ScrapeStatus)
@@ -83,12 +109,11 @@ def trigger_scrape():
         except Exception:
             logger.exception("yf.download() failed in on-demand scrape")
 
-        # --- Fetch financials per-ticker ---
+        # --- Fetch financials directly from Yahoo API ---
         for symbol in symbols:
             try:
-                ticker = yf.Ticker(symbol, session=http_session)
-                info = ticker.info or {}
-                if not info or info.get("quoteType") is None:
+                info = _fetch_yahoo_info(symbol, http_session)
+                if not info:
                     continue
 
                 fin_data = {
@@ -98,8 +123,8 @@ def trigger_scrape():
                     "market_cap": info.get("marketCap"),
                     "total_debt": info.get("totalDebt"),
                     "total_revenue": info.get("totalRevenue"),
-                    "operating_expense": info.get("operatingExpense") or info.get("totalOperatingExpenses"),
-                    "capital_expenditure": abs(info.get("capitalExpenditure") or info.get("capex") or 0) or None,
+                    "operating_expense": info.get("operatingExpenses") or info.get("totalOperatingExpenses"),
+                    "capital_expenditure": abs(info.get("capitalExpenditures") or info.get("capitalExpenditure") or 0) or None,
                     "num_employees": info.get("fullTimeEmployees"),
                     "earnings_per_share": info.get("trailingEps"),
                 }
