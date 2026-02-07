@@ -2,7 +2,7 @@ import os
 import time
 import logging
 
-import requests
+from curl_cffi.requests import Session as CffiSession
 import schedule
 import yfinance as yf
 from sqlalchemy import create_engine, text
@@ -27,13 +27,8 @@ SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
 
 
 def _make_session():
-    """Create a requests session with browser-like headers."""
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    })
-    return s
+    """Create a curl_cffi session that impersonates Chrome to bypass TLS fingerprinting."""
+    return CffiSession(impersonate="chrome")
 
 
 def get_tracked_symbols():
