@@ -22,6 +22,9 @@ body {
 
 /* Header */
 .app-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
   background: #161b22;
   border-bottom: 1px solid #30363d;
   padding: 0.75rem 1.5rem;
@@ -30,6 +33,33 @@ body {
 .app-header h1 {
   font-size: 1.25rem;
   font-weight: 600;
+  color: #f0f6fc;
+}
+
+/* Tabs */
+.app-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  background: #1c2128;
+  color: #c9d1d9;
+}
+
+.tab-btn--active {
+  background: #30363d;
   color: #f0f6fc;
 }
 
@@ -115,13 +145,98 @@ body {
   font-size: 1rem;
 }
 
-.dashboard-header {
+/* Toolbar */
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1rem;
+  gap: 1rem;
 }
 
 .dashboard-selected {
   font-size: 0.85rem;
   color: #8b949e;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-msg {
+  font-size: 0.8rem;
+  color: #3fb950;
+  padding: 0 0.5rem;
+}
+
+.toolbar-btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background: #30363d;
+  border-color: #484f58;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-btn--primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+
+.toolbar-btn--primary:hover {
+  background: #2ea043;
+  border-color: #3fb950;
+}
+
+/* Add Widget Dropdown */
+.add-widget-wrap {
+  position: relative;
+}
+
+.add-widget-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  list-style: none;
+  padding: 0.25rem 0;
+  z-index: 100;
+  min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.add-widget-menu li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  color: #c9d1d9;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.add-widget-menu li button:hover {
+  background: #1c2128;
 }
 
 /* Widget Grid */
@@ -238,4 +353,97 @@ body {
 
 .negative {
   color: #f85149;
+}
+
+/* Widget Remove Button */
+.widget-remove {
+  background: none;
+  border: none;
+  color: #484f58;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  margin-left: 0.5rem;
+  transition: color 0.15s;
+}
+
+.widget-remove:hover {
+  color: #f85149;
+}
+
+/* Finances Panel */
+.finances-empty {
+  text-align: center;
+  color: #8b949e;
+  padding: 3rem 1rem;
+}
+
+.finances-empty p {
+  margin-bottom: 0.5rem;
+}
+
+.finances-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.finance-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.finance-card h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #30363d;
+  background: #1c2128;
+}
+
+.finance-card-body {
+  padding: 0.75rem 1rem;
+}
+
+.finance-row {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #21262d;
+}
+
+.finance-row:last-child {
+  border-bottom: none;
+}
+
+.finance-symbol {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #58a6ff;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.finance-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
+.finance-values > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.finance-label {
+  font-size: 0.7rem;
+  color: #8b949e;
+}
+
+.finance-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e1e4e8;
 }

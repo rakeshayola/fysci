@@ -38,6 +38,25 @@ class StockPriceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- Stock Financials ---
+
+class StockFinancialsOut(BaseModel):
+    id: int
+    stock_id: int
+    pe_ratio: Optional[float] = None
+    forward_pe: Optional[float] = None
+    market_cap: Optional[int] = None
+    total_debt: Optional[int] = None
+    total_revenue: Optional[int] = None
+    operating_expense: Optional[int] = None
+    capital_expenditure: Optional[int] = None
+    num_employees: Optional[int] = None
+    earnings_per_share: Optional[float] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 # --- Widgets ---
 
 class WidgetBase(BaseModel):

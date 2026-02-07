@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import StockSidebar from "./components/StockSidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
+import FinancesPanel from "./components/FinancesPanel.jsx";
 import { fetchStocks } from "./api/stocks.js";
+import "./App.css";
 
 export default function App() {
   const [stocks, setStocks] = useState([]);
   const [selectedSymbols, setSelectedSymbols] = useState([]);
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,6 +39,20 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Stock Dashboard</h1>
+        <nav className="app-tabs">
+          <button
+            className={`tab-btn ${activeTab === "dashboard" ? "tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "finances" ? "tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("finances")}
+          >
+            Finances
+          </button>
+        </nav>
       </header>
       <div className="app-body">
         <StockSidebar
@@ -43,7 +60,11 @@ export default function App() {
           selectedSymbols={selectedSymbols}
           onToggle={toggleStock}
         />
-        <Dashboard selectedSymbols={selectedSymbols} />
+        {activeTab === "dashboard" ? (
+          <Dashboard selectedSymbols={selectedSymbols} />
+        ) : (
+          <FinancesPanel selectedSymbols={selectedSymbols} />
+        )}
       </div>
     </div>
   );

@@ -73,6 +73,51 @@ def scrape_stock(stock_id: int, symbol: str):
             session.commit()
 
         logger.info(f"{symbol}: upserted {len(rows)} price rows")
+
+        # Scrape financial data
+        try:
+            info = ticker.info or {}
+            fin_data = {
+                "stock_id": stock_id,
+                "pe_ratio": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "market_cap": info.get("marketCap"),
+                "total_debt": info.get("totalDebt"),
+                "total_revenue": info.get("totalRevenue"),
+                "operating_expense": info.get("operatingExpense") or info.get("totalOperatingExpenses"),
+                "capital_expenditure": abs(info.get("capitalExpenditure") or info.get("capex") or 0) or None,
+                "num_employees": info.get("fullTimeEmployees"),
+                "earnings_per_share": info.get("trailingEps"),
+            }
+            with Session() as session:
+                session.execute(
+                    text("""
+                        INSERT INTO stock_financials
+                            (stock_id, pe_ratio, forward_pe, market_cap, total_debt,
+                             total_revenue, operating_expense, capital_expenditure,
+                             num_employees, earnings_per_share)
+                        VALUES
+                            (:stock_id, :pe_ratio, :forward_pe, :market_cap, :total_debt,
+                             :total_revenue, :operating_expense, :capital_expenditure,
+                             :num_employees, :earnings_per_share)
+                        ON CONFLICT (stock_id)
+                        DO UPDATE SET
+                            pe_ratio=EXCLUDED.pe_ratio, forward_pe=EXCLUDED.forward_pe,
+                            market_cap=EXCLUDED.market_cap, total_debt=EXCLUDED.total_debt,
+                            total_revenue=EXCLUDED.total_revenue,
+                            operating_expense=EXCLUDED.operating_expense,
+                            capital_expenditure=EXCLUDED.capital_expenditure,
+                            num_employees=EXCLUDED.num_employees,
+                            earnings_per_share=EXCLUDED.earnings_per_share,
+                            updated_at=NOW()
+                    """),
+                    fin_data,
+                )
+                session.commit()
+            logger.info(f"{symbol}: financials updated")
+        except Exception:
+            logger.exception(f"Error scraping financials for {symbol}")
+
         return len(rows)
 
     except Exception:

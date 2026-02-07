@@ -34,3 +34,18 @@ export async function deleteWidget(widgetId) {
   });
   if (!res.ok) throw new Error("Failed to delete widget");
 }
+
+export async function triggerScrape() {
+  const res = await fetch(`${BASE}/scraper/run`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to trigger scrape");
+  return res.json();
+}
+
+export async function fetchFinancials(symbol) {
+  const res = await fetch(`${BASE}/financials/${symbol}`);
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`Failed to fetch financials for ${symbol}`);
+  }
+  return res.json();
+}
