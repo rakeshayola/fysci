@@ -63,7 +63,9 @@ ON CONFLICT (stock_id, date) DO NOTHING;
 
 -- Seed default widgets
 INSERT INTO widgets (name, widget_type, config, position_x, position_y, width, height) VALUES
-    ('Price Chart', 'price_chart', '{"interval": "daily"}', 0, 0, 2, 2),
-    ('Key Metrics', 'key_metrics', '{}', 2, 0, 1, 1),
-    ('Volume', 'volume_chart', '{"interval": "daily"}', 2, 1, 1, 1)
+    ('Historic Close Price', 'history_chart', '{"period": "90d"}', 0, 0, 3, 2),
+    ('Volume History', 'volume_bar_chart', '{"period": "90d"}', 0, 2, 3, 2),
+    ('Price Table', 'price_chart', '{"interval": "daily"}', 0, 4, 2, 2),
+    ('Key Metrics', 'key_metrics', '{}', 2, 4, 1, 1),
+    ('Volume Table', 'volume_chart', '{"interval": "daily"}', 2, 5, 1, 1)
 ON CONFLICT DO NOTHING;

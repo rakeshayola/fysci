@@ -221,6 +221,16 @@ body {
   text-align: left;
 }
 
+/* Charts */
+.widget-chart {
+  width: 100%;
+  min-height: 280px;
+}
+
+.widget-chart .recharts-legend-item-text {
+  color: #c9d1d9 !important;
+}
+
 /* Metrics */
 .positive {
   color: #3fb950;

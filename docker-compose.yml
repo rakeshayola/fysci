@@ -28,6 +28,19 @@ services:
       db:
         condition: service_healthy
 
+  scraper:
+    build: ./scraper
+    environment:
+      DATABASE_URL: postgresql://stockuser:stockpass@db:5432/stockdb
+      HISTORY_PERIOD: "1y"
+      SCRAPE_INTERVAL_MINUTES: "60"
+    volumes:
+      - ./scraper:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
     ports:
