@@ -1,8 +1,8 @@
 import os
 import time
 import logging
-from datetime import datetime
 
+from curl_cffi.requests import Session as CffiSession
 import schedule
 import yfinance as yf
 from sqlalchemy import create_engine, text
@@ -26,6 +26,11 @@ HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "1y")
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
 
 
+def _make_session():
+    """Create a curl_cffi session that impersonates Chrome to bypass TLS fingerprinting."""
+    return CffiSession(impersonate="chrome")
+
+
 def get_tracked_symbols():
     """Fetch all stock symbols from the database."""
     with Session() as session:
@@ -33,62 +38,193 @@ def get_tracked_symbols():
         return [(row[0], row[1]) for row in rows]
 
 
-def scrape_stock(stock_id: int, symbol: str):
-    """Download price history for a single stock and upsert into the database."""
+def scrape_prices(symbol_map: dict[str, int]):
+    """Batch-download price history using yf.download() and upsert into the database."""
+    symbols = list(symbol_map.keys())
+    logger.info(f"Downloading prices for {len(symbols)} stocks...")
+
     try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=HISTORY_PERIOD)
-
-        if hist.empty:
-            logger.warning(f"No data returned for {symbol}")
-            return 0
-
-        rows = []
-        for date, row in hist.iterrows():
-            rows.append({
-                "stock_id": stock_id,
-                "date": date.date(),
-                "open": round(float(row["Open"]), 4),
-                "high": round(float(row["High"]), 4),
-                "low": round(float(row["Low"]), 4),
-                "close": round(float(row["Close"]), 4),
-                "volume": int(row["Volume"]),
-            })
-
-        with Session() as session:
-            for r in rows:
-                session.execute(
-                    text("""
-                        INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
-                        VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
-                        ON CONFLICT (stock_id, date)
-                        DO UPDATE SET open = EXCLUDED.open,
-                                      high = EXCLUDED.high,
-                                      low  = EXCLUDED.low,
-                                      close = EXCLUDED.close,
-                                      volume = EXCLUDED.volume
-                    """),
-                    r,
-                )
-            session.commit()
-
-        logger.info(f"{symbol}: upserted {len(rows)} price rows")
-        return len(rows)
-
+        df = yf.download(
+            symbols,
+            period=HISTORY_PERIOD,
+            group_by="ticker",
+            threads=False,
+            session=_make_session(),
+        )
     except Exception:
-        logger.exception(f"Error scraping {symbol}")
+        logger.exception("yf.download() failed")
         return 0
+
+    if df.empty:
+        logger.warning("yf.download() returned empty dataframe")
+        return 0
+
+    total = 0
+    with Session() as db_session:
+        for symbol in symbols:
+            stock_id = symbol_map[symbol]
+            try:
+                if len(symbols) == 1:
+                    stock_df = df
+                else:
+                    stock_df = df[symbol]
+
+                stock_df = stock_df.dropna(subset=["Close"])
+                if stock_df.empty:
+                    logger.warning(f"{symbol}: no price rows after dropna")
+                    continue
+
+                for date_idx, row in stock_df.iterrows():
+                    db_session.execute(
+                        text("""
+                            INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+                            VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
+                            ON CONFLICT (stock_id, date)
+                            DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
+                                          low=EXCLUDED.low, close=EXCLUDED.close,
+                                          volume=EXCLUDED.volume
+                        """),
+                        {
+                            "stock_id": stock_id,
+                            "date": date_idx.date(),
+                            "open": round(float(row["Open"]), 4) if row.get("Open") else None,
+                            "high": round(float(row["High"]), 4) if row.get("High") else None,
+                            "low": round(float(row["Low"]), 4) if row.get("Low") else None,
+                            "close": round(float(row["Close"]), 4),
+                            "volume": int(row["Volume"]) if row.get("Volume") else 0,
+                        },
+                    )
+                total += len(stock_df)
+                logger.info(f"{symbol}: {len(stock_df)} price rows")
+            except Exception:
+                logger.exception(f"Error processing prices for {symbol}")
+
+        db_session.commit()
+
+    logger.info(f"Prices done — {total} total rows upserted")
+    return total
+
+
+YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+
+
+def _get_yahoo_crumb(http_session: CffiSession) -> str:
+    """Obtain a Yahoo Finance cookie + crumb for authenticated API access."""
+    # Step 1: visit fc.yahoo.com to get a session cookie
+    http_session.get("https://fc.yahoo.com", allow_redirects=True)
+    # Step 2: use that cookie to get a crumb
+    resp = http_session.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+    resp.raise_for_status()
+    crumb = resp.text.strip()
+    if not crumb:
+        raise RuntimeError("Failed to obtain Yahoo crumb")
+    return crumb
+
+
+def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dict:
+    """Fetch financial info directly from Yahoo Finance API using curl_cffi."""
+    url = YAHOO_QUOTE_URL.format(symbol=symbol)
+    resp = http_session.get(url, params={"modules": YAHOO_MODULES, "crumb": crumb})
+    resp.raise_for_status()
+    data = resp.json()
+    result = data.get("quoteSummary", {}).get("result")
+    if not result:
+        return {}
+    modules = result[0]
+    flat = {}
+    for module in modules.values():
+        if not isinstance(module, dict):
+            continue
+        for key, val in module.items():
+            if isinstance(val, dict) and "raw" in val:
+                flat[key] = val["raw"]
+            elif not isinstance(val, (dict, list)):
+                flat[key] = val
+    return flat
+
+
+def scrape_financials(symbol_map: dict[str, int]):
+    """Fetch financial data for each stock directly from Yahoo Finance API."""
+    http_session = _make_session()
+
+    try:
+        crumb = _get_yahoo_crumb(http_session)
+        logger.info(f"Obtained Yahoo crumb: {crumb[:8]}...")
+    except Exception:
+        logger.exception("Failed to obtain Yahoo crumb — skipping financials")
+        return 0
+
+    count = 0
+
+    for symbol, stock_id in symbol_map.items():
+        try:
+            info = _fetch_yahoo_info(symbol, http_session, crumb)
+
+            if not info:
+                logger.warning(f"{symbol}: Yahoo API returned empty, skipping financials")
+                continue
+
+            fin_data = {
+                "stock_id": stock_id,
+                "pe_ratio": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "market_cap": info.get("marketCap"),
+                "total_debt": info.get("totalDebt"),
+                "total_revenue": info.get("totalRevenue"),
+                "operating_expense": info.get("operatingExpenses") or info.get("totalOperatingExpenses"),
+                "capital_expenditure": abs(info.get("capitalExpenditures") or info.get("capitalExpenditure") or 0) or None,
+                "num_employees": info.get("fullTimeEmployees"),
+                "earnings_per_share": info.get("trailingEps"),
+            }
+
+            with Session() as db_session:
+                db_session.execute(
+                    text("""
+                        INSERT INTO stock_financials
+                            (stock_id, pe_ratio, forward_pe, market_cap, total_debt,
+                             total_revenue, operating_expense, capital_expenditure,
+                             num_employees, earnings_per_share)
+                        VALUES
+                            (:stock_id, :pe_ratio, :forward_pe, :market_cap, :total_debt,
+                             :total_revenue, :operating_expense, :capital_expenditure,
+                             :num_employees, :earnings_per_share)
+                        ON CONFLICT (stock_id)
+                        DO UPDATE SET
+                            pe_ratio=EXCLUDED.pe_ratio, forward_pe=EXCLUDED.forward_pe,
+                            market_cap=EXCLUDED.market_cap, total_debt=EXCLUDED.total_debt,
+                            total_revenue=EXCLUDED.total_revenue,
+                            operating_expense=EXCLUDED.operating_expense,
+                            capital_expenditure=EXCLUDED.capital_expenditure,
+                            num_employees=EXCLUDED.num_employees,
+                            earnings_per_share=EXCLUDED.earnings_per_share,
+                            updated_at=NOW()
+                    """),
+                    fin_data,
+                )
+                db_session.commit()
+
+            logger.info(f"{symbol}: financials updated")
+            count += 1
+        except Exception:
+            logger.exception(f"Error scraping financials for {symbol}")
+
+        time.sleep(2)  # rate-limit between calls
+
+    logger.info(f"Financials done — {count}/{len(symbol_map)} stocks")
+    return count
 
 
 def run_scrape():
     """Scrape all tracked stocks."""
-    symbols = get_tracked_symbols()
-    logger.info(f"Starting scrape for {len(symbols)} stocks...")
-    total = 0
-    for stock_id, symbol in symbols:
-        total += scrape_stock(stock_id, symbol)
-        time.sleep(1)  # rate-limit between tickers
-    logger.info(f"Scrape complete — {total} total rows upserted")
+    tracked = get_tracked_symbols()
+    symbol_map = {symbol: stock_id for stock_id, symbol in tracked}
+    logger.info(f"Starting scrape for {len(symbol_map)} stocks...")
+
+    scrape_prices(symbol_map)
+    scrape_financials(symbol_map)
+
+    logger.info("Scrape complete")
 
 
 def wait_for_db(retries=30, delay=2):

@@ -19,6 +19,21 @@ CREATE TABLE IF NOT EXISTS stock_prices (
     UNIQUE(stock_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS stock_financials (
+    id SERIAL PRIMARY KEY,
+    stock_id INTEGER REFERENCES stocks(id) ON DELETE CASCADE UNIQUE,
+    pe_ratio NUMERIC(12,4),
+    forward_pe NUMERIC(12,4),
+    market_cap BIGINT,
+    total_debt BIGINT,
+    total_revenue BIGINT,
+    operating_expense BIGINT,
+    capital_expenditure BIGINT,
+    num_employees INTEGER,
+    earnings_per_share NUMERIC(12,4),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS widgets (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

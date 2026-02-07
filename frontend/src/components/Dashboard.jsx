@@ -1,15 +1,59 @@
 import { useState, useEffect } from "react";
 import Widget from "./Widget.jsx";
-import { fetchWidgets } from "../api/stocks.js";
+import { fetchWidgets, createWidget, deleteWidget, triggerScrape } from "../api/stocks.js";
+
+const WIDGET_TEMPLATES = [
+  { name: "Historic Close Price", widget_type: "history_chart", width: 3, height: 2 },
+  { name: "Volume History", widget_type: "volume_bar_chart", width: 3, height: 2 },
+  { name: "Price Table", widget_type: "price_chart", width: 2, height: 2 },
+  { name: "Key Metrics", widget_type: "key_metrics", width: 1, height: 1 },
+  { name: "Volume Table", widget_type: "volume_chart", width: 1, height: 1 },
+];
 
 export default function Dashboard({ selectedSymbols }) {
   const [widgets, setWidgets] = useState([]);
+  const [scraping, setScraping] = useState(false);
+  const [scrapeMsg, setScrapeMsg] = useState("");
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   useEffect(() => {
     fetchWidgets()
       .then(setWidgets)
       .catch((err) => console.error(err));
   }, []);
+
+  const handleScrape = async () => {
+    setScraping(true);
+    setScrapeMsg("");
+    try {
+      const result = await triggerScrape();
+      setScrapeMsg(result.message);
+    } catch {
+      setScrapeMsg("Scrape failed");
+    } finally {
+      setScraping(false);
+      setTimeout(() => setScrapeMsg(""), 5000);
+    }
+  };
+
+  const handleAddWidget = async (template) => {
+    try {
+      const widget = await createWidget({ ...template, config: {} });
+      setWidgets((prev) => [...prev, widget]);
+    } catch (err) {
+      console.error(err);
+    }
+    setShowAddMenu(false);
+  };
+
+  const handleRemoveWidget = async (widgetId) => {
+    try {
+      await deleteWidget(widgetId);
+      setWidgets((prev) => prev.filter((w) => w.id !== widgetId));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   if (selectedSymbols.length === 0) {
     return (
@@ -21,10 +65,37 @@ export default function Dashboard({ selectedSymbols }) {
 
   return (
     <main className="dashboard">
-      <div className="dashboard-header">
+      <div className="dashboard-toolbar">
         <span className="dashboard-selected">
           Viewing: {selectedSymbols.join(", ")}
         </span>
+        <div className="toolbar-actions">
+          {scrapeMsg && <span className="toolbar-msg">{scrapeMsg}</span>}
+          <button
+            className="toolbar-btn"
+            onClick={handleScrape}
+            disabled={scraping}
+          >
+            {scraping ? "Scraping..." : "Scrape Now"}
+          </button>
+          <div className="add-widget-wrap">
+            <button
+              className="toolbar-btn toolbar-btn--primary"
+              onClick={() => setShowAddMenu((v) => !v)}
+            >
+              + Add Widget
+            </button>
+            {showAddMenu && (
+              <ul className="add-widget-menu">
+                {WIDGET_TEMPLATES.map((t) => (
+                  <li key={t.widget_type}>
+                    <button onClick={() => handleAddWidget(t)}>{t.name}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
       <div className="widget-grid">
         {widgets.map((widget) => (
@@ -32,11 +103,12 @@ export default function Dashboard({ selectedSymbols }) {
             key={widget.id}
             widget={widget}
             selectedSymbols={selectedSymbols}
+            onRemove={() => handleRemoveWidget(widget.id)}
           />
         ))}
         {widgets.length === 0 && (
           <p className="no-widgets">
-            No widgets configured. They will appear here once added.
+            No widgets configured. Click "+ Add Widget" to get started.
           </p>
         )}
       </div>

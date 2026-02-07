@@ -20,6 +20,9 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       DATABASE_URL: postgresql://stockuser:stockpass@db:5432/stockdb
     volumes:
@@ -30,6 +33,9 @@ services:
 
   scraper:
     build: ./scraper
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       DATABASE_URL: postgresql://stockuser:stockpass@db:5432/stockdb
       HISTORY_PERIOD: "1y"

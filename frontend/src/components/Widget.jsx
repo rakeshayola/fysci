@@ -33,7 +33,7 @@ function getLimit(widgetType) {
   return 5;
 }
 
-export default function Widget({ widget, selectedSymbols }) {
+export default function Widget({ widget, selectedSymbols, onRemove }) {
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -67,6 +67,9 @@ export default function Widget({ widget, selectedSymbols }) {
       <div className="widget-header">
         <h3>{widget.name}</h3>
         <span className="widget-type">{widget.widget_type}</span>
+        {onRemove && (
+          <button className="widget-remove" onClick={onRemove} title="Remove widget">&times;</button>
+        )}
       </div>
       <div className="widget-body">
         {loading ? (
