@@ -109,17 +109,29 @@ YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sy
 YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
 
 
-def _fetch_yahoo_info(symbol: str, http_session: CffiSession) -> dict:
+def _get_yahoo_crumb(http_session: CffiSession) -> str:
+    """Obtain a Yahoo Finance cookie + crumb for authenticated API access."""
+    # Step 1: visit fc.yahoo.com to get a session cookie
+    http_session.get("https://fc.yahoo.com", allow_redirects=True)
+    # Step 2: use that cookie to get a crumb
+    resp = http_session.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+    resp.raise_for_status()
+    crumb = resp.text.strip()
+    if not crumb:
+        raise RuntimeError("Failed to obtain Yahoo crumb")
+    return crumb
+
+
+def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dict:
     """Fetch financial info directly from Yahoo Finance API using curl_cffi."""
     url = YAHOO_QUOTE_URL.format(symbol=symbol)
-    resp = http_session.get(url, params={"modules": YAHOO_MODULES})
+    resp = http_session.get(url, params={"modules": YAHOO_MODULES, "crumb": crumb})
     resp.raise_for_status()
     data = resp.json()
     result = data.get("quoteSummary", {}).get("result")
     if not result:
         return {}
     modules = result[0]
-    # Flatten the nested module dicts into one dict, extracting 'raw' values
     flat = {}
     for module in modules.values():
         if not isinstance(module, dict):
@@ -135,11 +147,19 @@ def _fetch_yahoo_info(symbol: str, http_session: CffiSession) -> dict:
 def scrape_financials(symbol_map: dict[str, int]):
     """Fetch financial data for each stock directly from Yahoo Finance API."""
     http_session = _make_session()
+
+    try:
+        crumb = _get_yahoo_crumb(http_session)
+        logger.info(f"Obtained Yahoo crumb: {crumb[:8]}...")
+    except Exception:
+        logger.exception("Failed to obtain Yahoo crumb — skipping financials")
+        return 0
+
     count = 0
 
     for symbol, stock_id in symbol_map.items():
         try:
-            info = _fetch_yahoo_info(symbol, http_session)
+            info = _fetch_yahoo_info(symbol, http_session, crumb)
 
             if not info:
                 logger.warning(f"{symbol}: Yahoo API returned empty, skipping financials")

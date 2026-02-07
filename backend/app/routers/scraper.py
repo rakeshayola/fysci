@@ -27,10 +27,21 @@ def _make_session():
     return CffiSession(impersonate="chrome")
 
 
-def _fetch_yahoo_info(symbol: str, http_session: CffiSession) -> dict:
+def _get_yahoo_crumb(http_session: CffiSession) -> str:
+    """Obtain a Yahoo Finance cookie + crumb for authenticated API access."""
+    http_session.get("https://fc.yahoo.com", allow_redirects=True)
+    resp = http_session.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+    resp.raise_for_status()
+    crumb = resp.text.strip()
+    if not crumb:
+        raise RuntimeError("Failed to obtain Yahoo crumb")
+    return crumb
+
+
+def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dict:
     """Fetch financial info directly from Yahoo Finance API."""
     url = YAHOO_QUOTE_URL.format(symbol=symbol)
-    resp = http_session.get(url, params={"modules": YAHOO_MODULES})
+    resp = http_session.get(url, params={"modules": YAHOO_MODULES, "crumb": crumb})
     resp.raise_for_status()
     data = resp.json()
     result = data.get("quoteSummary", {}).get("result")
@@ -110,9 +121,18 @@ def trigger_scrape():
             logger.exception("yf.download() failed in on-demand scrape")
 
         # --- Fetch financials directly from Yahoo API ---
+        try:
+            crumb = _get_yahoo_crumb(http_session)
+        except Exception:
+            logger.exception("Failed to obtain Yahoo crumb — skipping financials")
+            return ScrapeStatus(
+                status="ok",
+                message=f"Prices: {price_count}/{len(symbols)}, Financials: 0/{len(symbols)} (crumb failed)",
+            )
+
         for symbol in symbols:
             try:
-                info = _fetch_yahoo_info(symbol, http_session)
+                info = _fetch_yahoo_info(symbol, http_session, crumb)
                 if not info:
                     continue
 
