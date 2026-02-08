@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -48,6 +48,26 @@ class StockFinancials(Base):
     num_employees = Column(Integer)
     earnings_per_share = Column(Numeric(12, 4))
     updated_at = Column(DateTime, server_default=func.now())
+
+    stock = relationship("Stock")
+
+
+class StockNews(Base):
+    __tablename__ = "stock_news"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "url", name="uq_stock_news_stock_url"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    headline = Column(String(500), nullable=False)
+    url = Column(String(1000))
+    source = Column(String(200))
+    published_at = Column(DateTime)
+    sentiment_score = Column(Numeric(5, 4))
+    sentiment_label = Column(String(10))
+    feed_source = Column(String(20), default="google")
+    created_at = Column(DateTime, server_default=func.now())
 
     stock = relationship("Stock")
 

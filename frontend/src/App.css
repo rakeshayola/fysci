@@ -567,3 +567,239 @@ body {
 .status-market-dir .status-value {
   font-size: 0.85rem;
 }
+
+/* ===== News Panel ===== */
+
+.news-panel {
+  padding: 1.25rem;
+}
+
+.news-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f0f6fc;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+}
+
+/* Sentiment grid */
+.sentiment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.sentiment-gauge {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.sentiment-gauge-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.sentiment-symbol {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #58a6ff;
+}
+
+.sentiment-overall {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.sentiment-overall--bullish {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.sentiment-overall--bearish {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.sentiment-overall--neutral {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8b949e;
+}
+
+.sentiment-avg {
+  font-size: 0.75rem;
+  color: #8b949e;
+  margin-left: auto;
+}
+
+.sentiment-bar {
+  display: flex;
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 0.65rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.sentiment-bar--pos {
+  background: #238636;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sentiment-bar--neu {
+  background: #30363d;
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sentiment-bar--neg {
+  background: #da3633;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sentiment-counts {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.7rem;
+}
+
+/* News toolbar */
+.news-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.news-feed-filter {
+  display: flex;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.news-filter-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.news-filter-btn:hover {
+  background: #30363d;
+  color: #c9d1d9;
+}
+
+.news-filter-btn--active {
+  background: #58a6ff;
+  color: #0d1117;
+}
+
+/* Article feed */
+.news-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.news-no-data {
+  color: #8b949e;
+  text-align: center;
+  padding: 2rem 0;
+  font-size: 0.85rem;
+}
+
+.news-article {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s;
+}
+
+.news-article:hover {
+  border-color: #484f58;
+}
+
+.news-article-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.news-article-symbol {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #58a6ff;
+}
+
+.news-article-source {
+  font-size: 0.7rem;
+  color: #8b949e;
+}
+
+.news-article-time {
+  font-size: 0.7rem;
+  color: #484f58;
+  margin-left: auto;
+}
+
+.news-article-headline {
+  font-size: 0.85rem;
+  color: #c9d1d9;
+  text-decoration: none;
+  line-height: 1.4;
+  display: block;
+}
+
+.news-article-headline:hover {
+  color: #58a6ff;
+  text-decoration: underline;
+}
+
+/* Sentiment badge */
+.sentiment-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.sentiment-badge--pos {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.sentiment-badge--neg {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.sentiment-badge--neu {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8b949e;
+}

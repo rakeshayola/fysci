@@ -47,6 +47,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  news-scraper:
+    build: ./news-scraper
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      DATABASE_URL: postgresql://stockuser:stockpass@db:5432/stockdb
+      NEWS_INTERVAL_MINUTES: "30"
+      TWITTER_BEARER_TOKEN: ""
+    volumes:
+      - ./news-scraper:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
     ports:

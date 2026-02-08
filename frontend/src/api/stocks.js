@@ -47,6 +47,24 @@ export async function fetchMarketStatus() {
   return res.json();
 }
 
+export async function fetchNews(symbol, limit = 30) {
+  const res = await fetch(`${BASE}/news/${symbol}?limit=${limit}`);
+  if (!res.ok) {
+    if (res.status === 404) return [];
+    throw new Error(`Failed to fetch news for ${symbol}`);
+  }
+  return res.json();
+}
+
+export async function fetchSentiment(symbol) {
+  const res = await fetch(`${BASE}/news/${symbol}/sentiment`);
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`Failed to fetch sentiment for ${symbol}`);
+  }
+  return res.json();
+}
+
 export async function fetchFinancials(symbol) {
   const res = await fetch(`${BASE}/financials/${symbol}`);
   if (!res.ok) {
