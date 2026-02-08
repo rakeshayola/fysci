@@ -46,6 +46,20 @@ CREATE TABLE IF NOT EXISTS widgets (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS stock_news (
+    id SERIAL PRIMARY KEY,
+    stock_id INTEGER REFERENCES stocks(id) ON DELETE CASCADE,
+    headline VARCHAR(500) NOT NULL,
+    url VARCHAR(1000),
+    source VARCHAR(200),
+    published_at TIMESTAMP,
+    sentiment_score NUMERIC(5,4),   -- -1.0 (bearish) to +1.0 (bullish)
+    sentiment_label VARCHAR(10),    -- positive / negative / neutral
+    feed_source VARCHAR(20) DEFAULT 'google', -- google / twitter
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(stock_id, url)
+);
+
 -- Seed some sample stocks
 INSERT INTO stocks (symbol, name, sector) VALUES
     ('AAPL', 'Apple Inc.', 'Technology'),

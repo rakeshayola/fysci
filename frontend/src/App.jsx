@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import StockSidebar from "./components/StockSidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import FinancesPanel from "./components/FinancesPanel.jsx";
+import NewsPanel from "./components/NewsPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import { fetchStocks } from "./api/stocks.js";
 import "./App.css";
@@ -53,6 +54,12 @@ export default function App() {
           >
             Finances
           </button>
+          <button
+            className={`tab-btn ${activeTab === "news" ? "tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("news")}
+          >
+            News
+          </button>
         </nav>
       </header>
       <div className="app-body">
@@ -61,11 +68,9 @@ export default function App() {
           selectedSymbols={selectedSymbols}
           onToggle={toggleStock}
         />
-        {activeTab === "dashboard" ? (
-          <Dashboard selectedSymbols={selectedSymbols} />
-        ) : (
-          <FinancesPanel selectedSymbols={selectedSymbols} />
-        )}
+        {activeTab === "dashboard" && <Dashboard selectedSymbols={selectedSymbols} />}
+        {activeTab === "finances" && <FinancesPanel selectedSymbols={selectedSymbols} />}
+        {activeTab === "news" && <NewsPanel selectedSymbols={selectedSymbols} />}
       </div>
       <StatusBar selectedSymbols={selectedSymbols} />
     </div>

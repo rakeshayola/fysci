@@ -52,6 +52,23 @@ class StockFinancials(Base):
     stock = relationship("Stock")
 
 
+class StockNews(Base):
+    __tablename__ = "stock_news"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    headline = Column(String(500), nullable=False)
+    url = Column(String(1000))
+    source = Column(String(200))
+    published_at = Column(DateTime)
+    sentiment_score = Column(Numeric(5, 4))
+    sentiment_label = Column(String(10))
+    feed_source = Column(String(20), default="google")
+    created_at = Column(DateTime, server_default=func.now())
+
+    stock = relationship("Stock")
+
+
 class Widget(Base):
     __tablename__ = "widgets"
 

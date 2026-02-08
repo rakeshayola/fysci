@@ -57,6 +57,33 @@ class StockFinancialsOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- Stock News ---
+
+class StockNewsOut(BaseModel):
+    id: int
+    stock_id: int
+    headline: str
+    url: Optional[str] = None
+    source: Optional[str] = None
+    published_at: Optional[datetime] = None
+    sentiment_score: Optional[float] = None
+    sentiment_label: Optional[str] = None
+    feed_source: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SentimentSummary(BaseModel):
+    symbol: str
+    total: int
+    positive: int
+    negative: int
+    neutral: int
+    avg_score: float
+    label: str  # overall: bullish / bearish / neutral
+
+
 # --- Widgets ---
 
 class WidgetBase(BaseModel):
