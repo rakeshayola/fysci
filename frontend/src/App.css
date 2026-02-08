@@ -204,6 +204,41 @@ body {
   border-color: #3fb950;
 }
 
+/* Timeframe Slider */
+.timeframe-slider {
+  display: flex;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.timeframe-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.timeframe-btn:hover {
+  background: #30363d;
+  color: #c9d1d9;
+}
+
+.timeframe-btn--active {
+  background: #58a6ff;
+  color: #0d1117;
+}
+
+.timeframe-btn--active:hover {
+  background: #79c0ff;
+  color: #0d1117;
+}
+
 /* Add Widget Dropdown */
 .add-widget-wrap {
   position: relative;

@@ -22,7 +22,7 @@ DATABASE_URL = os.getenv(
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
-HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "1y")
+HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "5y")
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
 
 YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"

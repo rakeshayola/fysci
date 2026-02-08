@@ -10,11 +10,20 @@ const WIDGET_TEMPLATES = [
   { name: "Volume Table", widget_type: "volume_chart", width: 1, height: 1 },
 ];
 
+const TIMEFRAMES = [
+  { label: "1W", value: "1w", days: 5 },
+  { label: "1M", value: "1m", days: 22 },
+  { label: "6M", value: "6m", days: 130 },
+  { label: "1Y", value: "1y", days: 252 },
+  { label: "5Y", value: "5y", days: 1260 },
+];
+
 export default function Dashboard({ selectedSymbols }) {
   const [widgets, setWidgets] = useState([]);
   const [scraping, setScraping] = useState(false);
   const [scrapeMsg, setScrapeMsg] = useState("");
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [timeframe, setTimeframe] = useState(TIMEFRAMES[3]); // default 1Y
 
   useEffect(() => {
     fetchWidgets()
@@ -70,6 +79,17 @@ export default function Dashboard({ selectedSymbols }) {
           Viewing: {selectedSymbols.join(", ")}
         </span>
         <div className="toolbar-actions">
+          <div className="timeframe-slider">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.value}
+                className={`timeframe-btn${timeframe.value === tf.value ? " timeframe-btn--active" : ""}`}
+                onClick={() => setTimeframe(tf)}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
           {scrapeMsg && <span className="toolbar-msg">{scrapeMsg}</span>}
           <button
             className="toolbar-btn"
@@ -103,6 +123,7 @@ export default function Dashboard({ selectedSymbols }) {
             key={widget.id}
             widget={widget}
             selectedSymbols={selectedSymbols}
+            timeframe={timeframe}
             onRemove={() => handleRemoveWidget(widget.id)}
           />
         ))}

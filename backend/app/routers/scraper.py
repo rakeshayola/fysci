@@ -129,7 +129,7 @@ def trigger_scrape():
         # --- Fetch prices per symbol via chart API ---
         for symbol in symbols:
             try:
-                chart_rows = _fetch_chart(symbol, http_session, crumb)
+                chart_rows = _fetch_chart(symbol, http_session, crumb, "5y")
                 if not chart_rows:
                     logger.warning(f"{symbol}: no price data returned")
                     continue
