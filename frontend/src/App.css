@@ -66,7 +66,7 @@ body {
 /* Layout */
 .app-body {
   display: flex;
-  height: calc(100vh - 50px);
+  height: calc(100vh - 50px - 38px); /* header + status bar */
 }
 
 /* Sidebar */
@@ -481,4 +481,89 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   color: #e1e4e8;
+}
+
+/* Floating Status Bar */
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  background: #161b22;
+  border-top: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  gap: 1.5rem;
+  z-index: 200;
+  font-size: 0.75rem;
+}
+
+.status-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.status-label {
+  color: #8b949e;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+}
+
+.status-value {
+  color: #c9d1d9;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.status-dot--open {
+  background: #3fb950;
+  box-shadow: 0 0 4px rgba(63, 185, 80, 0.6);
+}
+
+.status-dot--closed {
+  background: #484f58;
+}
+
+.status-arrow,
+.status-arrow-lg {
+  font-size: 0.65rem;
+}
+
+.status-arrow-lg {
+  font-size: 0.85rem;
+}
+
+.status-arrow--up {
+  color: #3fb950;
+}
+
+.status-arrow--down {
+  color: #f85149;
+}
+
+.status-exchange .status-value {
+  gap: 0.35rem;
+}
+
+.status-market-dir {
+  margin-left: auto;
+}
+
+.status-market-dir .status-value {
+  font-size: 0.85rem;
 }

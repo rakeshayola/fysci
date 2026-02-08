@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import StockSidebar from "./components/StockSidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import FinancesPanel from "./components/FinancesPanel.jsx";
+import StatusBar from "./components/StatusBar.jsx";
 import { fetchStocks } from "./api/stocks.js";
 import "./App.css";
 
@@ -66,6 +67,7 @@ export default function App() {
           <FinancesPanel selectedSymbols={selectedSymbols} />
         )}
       </div>
+      <StatusBar selectedSymbols={selectedSymbols} />
     </div>
   );
 }
