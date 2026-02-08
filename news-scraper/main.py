@@ -261,8 +261,20 @@ def wait_for_db(retries=30, delay=2):
     raise RuntimeError("Could not connect to database")
 
 
+def ensure_unique_constraint():
+    """Create the unique constraint on stock_news(stock_id, url) if missing."""
+    with Session() as session:
+        session.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_news_stock_url
+            ON stock_news (stock_id, url)
+        """))
+        session.commit()
+    logger.info("Ensured unique index uq_stock_news_stock_url exists")
+
+
 if __name__ == "__main__":
     wait_for_db()
+    ensure_unique_constraint()
 
     logger.info("Running initial news scrape...")
     run_scrape()

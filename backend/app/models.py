@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -54,6 +54,9 @@ class StockFinancials(Base):
 
 class StockNews(Base):
     __tablename__ = "stock_news"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "url", name="uq_stock_news_stock_url"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
