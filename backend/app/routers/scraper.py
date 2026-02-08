@@ -1,8 +1,8 @@
 import logging
 import time
+from datetime import datetime, timezone
 
 from curl_cffi.requests import Session as CffiSession
-import yfinance as yf
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -19,6 +19,7 @@ class ScrapeStatus(BaseModel):
     message: str
 
 
+YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
 YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
 YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
 
@@ -36,6 +37,48 @@ def _get_yahoo_crumb(http_session: CffiSession) -> str:
     if not crumb:
         raise RuntimeError("Failed to obtain Yahoo crumb")
     return crumb
+
+
+def _fetch_chart(symbol: str, http_session: CffiSession, crumb: str, period: str = "1y") -> list[dict]:
+    """Fetch OHLCV data from Yahoo Finance chart API."""
+    url = YAHOO_CHART_URL.format(symbol=symbol)
+    resp = http_session.get(url, params={
+        "range": period,
+        "interval": "1d",
+        "crumb": crumb,
+    })
+    resp.raise_for_status()
+    data = resp.json()
+
+    result = data.get("chart", {}).get("result")
+    if not result:
+        return []
+
+    chart = result[0]
+    timestamps = chart.get("timestamp", [])
+    quote = chart.get("indicators", {}).get("quote", [{}])[0]
+
+    opens = quote.get("open", [])
+    highs = quote.get("high", [])
+    lows = quote.get("low", [])
+    closes = quote.get("close", [])
+    volumes = quote.get("volume", [])
+
+    rows = []
+    for i, ts in enumerate(timestamps):
+        close_val = closes[i] if i < len(closes) else None
+        if close_val is None:
+            continue
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        rows.append({
+            "date": dt,
+            "open": round(float(opens[i]), 4) if i < len(opens) and opens[i] is not None else None,
+            "high": round(float(highs[i]), 4) if i < len(highs) and highs[i] is not None else None,
+            "low": round(float(lows[i]), 4) if i < len(lows) and lows[i] is not None else None,
+            "close": round(float(close_val), 4),
+            "volume": int(volumes[i]) if i < len(volumes) and volumes[i] is not None else 0,
+        })
+    return rows
 
 
 def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dict:
@@ -62,7 +105,7 @@ def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dic
 
 @router.post("/run", response_model=ScrapeStatus)
 def trigger_scrape():
-    """Trigger an on-demand scrape using yf.download() for prices and ticker.info for financials."""
+    """Trigger an on-demand scrape using Yahoo Finance APIs directly."""
     try:
         with engine.connect() as conn:
             rows = conn.execute(text("SELECT id, symbol FROM stocks ORDER BY symbol"))
@@ -76,60 +119,42 @@ def trigger_scrape():
         price_count = 0
         fin_count = 0
 
-        # --- Batch download prices ---
-        try:
-            df = yf.download(
-                symbols,
-                period="1y",
-                group_by="ticker",
-                threads=False,
-                session=http_session,
-            )
-
-            if not df.empty:
-                with engine.begin() as conn:
-                    for symbol in symbols:
-                        try:
-                            stock_df = df if len(symbols) == 1 else df[symbol]
-                            stock_df = stock_df.dropna(subset=["Close"])
-                            if stock_df.empty:
-                                continue
-                            for date_idx, row in stock_df.iterrows():
-                                conn.execute(
-                                    text("""
-                                        INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
-                                        VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
-                                        ON CONFLICT (stock_id, date)
-                                        DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
-                                                      low=EXCLUDED.low, close=EXCLUDED.close,
-                                                      volume=EXCLUDED.volume
-                                    """),
-                                    {
-                                        "stock_id": symbol_map[symbol],
-                                        "date": date_idx.date(),
-                                        "open": round(float(row["Open"]), 4) if row.get("Open") else None,
-                                        "high": round(float(row["High"]), 4) if row.get("High") else None,
-                                        "low": round(float(row["Low"]), 4) if row.get("Low") else None,
-                                        "close": round(float(row["Close"]), 4),
-                                        "volume": int(row["Volume"]) if row.get("Volume") else 0,
-                                    },
-                                )
-                            price_count += 1
-                        except Exception:
-                            logger.exception(f"Error processing prices for {symbol}")
-        except Exception:
-            logger.exception("yf.download() failed in on-demand scrape")
-
-        # --- Fetch financials directly from Yahoo API ---
+        # --- Obtain crumb for all API calls ---
         try:
             crumb = _get_yahoo_crumb(http_session)
         except Exception:
-            logger.exception("Failed to obtain Yahoo crumb — skipping financials")
-            return ScrapeStatus(
-                status="ok",
-                message=f"Prices: {price_count}/{len(symbols)}, Financials: 0/{len(symbols)} (crumb failed)",
-            )
+            logger.exception("Failed to obtain Yahoo crumb")
+            return ScrapeStatus(status="error", message="Failed to obtain Yahoo crumb")
 
+        # --- Fetch prices per symbol via chart API ---
+        for symbol in symbols:
+            try:
+                chart_rows = _fetch_chart(symbol, http_session, crumb, "5y")
+                if not chart_rows:
+                    logger.warning(f"{symbol}: no price data returned")
+                    continue
+
+                with engine.begin() as conn:
+                    for r in chart_rows:
+                        conn.execute(
+                            text("""
+                                INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+                                VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
+                                ON CONFLICT (stock_id, date)
+                                DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
+                                              low=EXCLUDED.low, close=EXCLUDED.close,
+                                              volume=EXCLUDED.volume
+                            """),
+                            {"stock_id": symbol_map[symbol], **r},
+                        )
+
+                price_count += 1
+                logger.info(f"{symbol}: {len(chart_rows)} price rows upserted")
+            except Exception:
+                logger.exception(f"Error processing prices for {symbol}")
+            time.sleep(1)
+
+        # --- Fetch financials via quoteSummary API ---
         for symbol in symbols:
             try:
                 info = _fetch_yahoo_info(symbol, http_session, crumb)

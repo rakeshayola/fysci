@@ -41,6 +41,12 @@ export async function triggerScrape() {
   return res.json();
 }
 
+export async function fetchMarketStatus() {
+  const res = await fetch(`${BASE}/status/`);
+  if (!res.ok) throw new Error("Failed to fetch market status");
+  return res.json();
+}
+
 export async function fetchFinancials(symbol) {
   const res = await fetch(`${BASE}/financials/${symbol}`);
   if (!res.ok) {

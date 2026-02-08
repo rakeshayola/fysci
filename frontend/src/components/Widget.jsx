@@ -26,20 +26,22 @@ const CHART_COLORS = [
   "#388bfd",
 ];
 
-function getLimit(widgetType) {
+function getLimit(widgetType, timeframeDays) {
   if (widgetType === "history_chart" || widgetType === "volume_bar_chart") {
-    return 90;
+    return timeframeDays;
   }
   return 5;
 }
 
-export default function Widget({ widget, selectedSymbols, onRemove }) {
+export default function Widget({ widget, selectedSymbols, timeframe, onRemove }) {
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
 
+  const days = timeframe ? timeframe.days : 252;
+
   useEffect(() => {
     setLoading(true);
-    const limit = getLimit(widget.widget_type);
+    const limit = getLimit(widget.widget_type, days);
     Promise.all(
       selectedSymbols.map((symbol) =>
         fetchStockPrices(symbol, limit).then((prices) => ({ symbol, prices }))
@@ -54,7 +56,7 @@ export default function Widget({ widget, selectedSymbols, onRemove }) {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
-  }, [selectedSymbols, widget.widget_type]);
+  }, [selectedSymbols, widget.widget_type, days]);
 
   return (
     <div

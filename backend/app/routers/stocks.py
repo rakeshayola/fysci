@@ -41,7 +41,7 @@ def get_stock(symbol: str, db: Session = Depends(get_db)):
 @router.get("/{symbol}/prices", response_model=list[StockPriceOut])
 def get_stock_prices(
     symbol: str,
-    limit: Optional[int] = Query(30, ge=1, le=365),
+    limit: Optional[int] = Query(30, ge=1, le=1300),
     db: Session = Depends(get_db),
 ):
     """Get price history for a stock."""

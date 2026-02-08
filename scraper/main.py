@@ -1,10 +1,10 @@
 import os
 import time
 import logging
+from datetime import datetime, timezone
 
 from curl_cffi.requests import Session as CffiSession
 import schedule
-import yfinance as yf
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -22,13 +22,28 @@ DATABASE_URL = os.getenv(
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
-HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "1y")
+HISTORY_PERIOD = os.getenv("HISTORY_PERIOD", "5y")
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
+
+YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
 
 
 def _make_session():
-    """Create a curl_cffi session that impersonates Chrome to bypass TLS fingerprinting."""
+    """Create a curl_cffi session that impersonates Chrome."""
     return CffiSession(impersonate="chrome")
+
+
+def _get_yahoo_crumb(http_session: CffiSession) -> str:
+    """Obtain a Yahoo Finance cookie + crumb."""
+    http_session.get("https://fc.yahoo.com", allow_redirects=True)
+    resp = http_session.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+    resp.raise_for_status()
+    crumb = resp.text.strip()
+    if not crumb:
+        raise RuntimeError("Failed to obtain Yahoo crumb")
+    return crumb
 
 
 def get_tracked_symbols():
@@ -38,92 +53,50 @@ def get_tracked_symbols():
         return [(row[0], row[1]) for row in rows]
 
 
-def scrape_prices(symbol_map: dict[str, int]):
-    """Batch-download price history using yf.download() and upsert into the database."""
-    symbols = list(symbol_map.keys())
-    logger.info(f"Downloading prices for {len(symbols)} stocks...")
-
-    try:
-        df = yf.download(
-            symbols,
-            period=HISTORY_PERIOD,
-            group_by="ticker",
-            threads=False,
-            session=_make_session(),
-        )
-    except Exception:
-        logger.exception("yf.download() failed")
-        return 0
-
-    if df.empty:
-        logger.warning("yf.download() returned empty dataframe")
-        return 0
-
-    total = 0
-    with Session() as db_session:
-        for symbol in symbols:
-            stock_id = symbol_map[symbol]
-            try:
-                if len(symbols) == 1:
-                    stock_df = df
-                else:
-                    stock_df = df[symbol]
-
-                stock_df = stock_df.dropna(subset=["Close"])
-                if stock_df.empty:
-                    logger.warning(f"{symbol}: no price rows after dropna")
-                    continue
-
-                for date_idx, row in stock_df.iterrows():
-                    db_session.execute(
-                        text("""
-                            INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
-                            VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
-                            ON CONFLICT (stock_id, date)
-                            DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
-                                          low=EXCLUDED.low, close=EXCLUDED.close,
-                                          volume=EXCLUDED.volume
-                        """),
-                        {
-                            "stock_id": stock_id,
-                            "date": date_idx.date(),
-                            "open": round(float(row["Open"]), 4) if row.get("Open") else None,
-                            "high": round(float(row["High"]), 4) if row.get("High") else None,
-                            "low": round(float(row["Low"]), 4) if row.get("Low") else None,
-                            "close": round(float(row["Close"]), 4),
-                            "volume": int(row["Volume"]) if row.get("Volume") else 0,
-                        },
-                    )
-                total += len(stock_df)
-                logger.info(f"{symbol}: {len(stock_df)} price rows")
-            except Exception:
-                logger.exception(f"Error processing prices for {symbol}")
-
-        db_session.commit()
-
-    logger.info(f"Prices done — {total} total rows upserted")
-    return total
-
-
-YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
-YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
-
-
-def _get_yahoo_crumb(http_session: CffiSession) -> str:
-    """Obtain a Yahoo Finance cookie + crumb for authenticated API access."""
-    # Step 1: visit fc.yahoo.com to get a session cookie
-    http_session.get("https://fc.yahoo.com", allow_redirects=True)
-    # Step 2: use that cookie to get a crumb
-    resp = http_session.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+def _fetch_chart(symbol: str, http_session: CffiSession, crumb: str, period: str = "1y") -> list[dict]:
+    """Fetch OHLCV data from Yahoo Finance chart API."""
+    url = YAHOO_CHART_URL.format(symbol=symbol)
+    resp = http_session.get(url, params={
+        "range": period,
+        "interval": "1d",
+        "crumb": crumb,
+    })
     resp.raise_for_status()
-    crumb = resp.text.strip()
-    if not crumb:
-        raise RuntimeError("Failed to obtain Yahoo crumb")
-    return crumb
+    data = resp.json()
+
+    result = data.get("chart", {}).get("result")
+    if not result:
+        return []
+
+    chart = result[0]
+    timestamps = chart.get("timestamp", [])
+    quote = chart.get("indicators", {}).get("quote", [{}])[0]
+
+    opens = quote.get("open", [])
+    highs = quote.get("high", [])
+    lows = quote.get("low", [])
+    closes = quote.get("close", [])
+    volumes = quote.get("volume", [])
+
+    rows = []
+    for i, ts in enumerate(timestamps):
+        close_val = closes[i] if i < len(closes) else None
+        if close_val is None:
+            continue
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        rows.append({
+            "date": dt,
+            "open": round(float(opens[i]), 4) if i < len(opens) and opens[i] is not None else None,
+            "high": round(float(highs[i]), 4) if i < len(highs) and highs[i] is not None else None,
+            "low": round(float(lows[i]), 4) if i < len(lows) and lows[i] is not None else None,
+            "close": round(float(close_val), 4),
+            "volume": int(volumes[i]) if i < len(volumes) and volumes[i] is not None else 0,
+        })
+    return rows
 
 
 def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dict:
-    """Fetch financial info directly from Yahoo Finance API using curl_cffi."""
+    """Fetch financial info from Yahoo Finance quoteSummary API."""
     url = YAHOO_QUOTE_URL.format(symbol=symbol)
     resp = http_session.get(url, params={"modules": YAHOO_MODULES, "crumb": crumb})
     resp.raise_for_status()
@@ -144,17 +117,45 @@ def _fetch_yahoo_info(symbol: str, http_session: CffiSession, crumb: str) -> dic
     return flat
 
 
-def scrape_financials(symbol_map: dict[str, int]):
-    """Fetch financial data for each stock directly from Yahoo Finance API."""
-    http_session = _make_session()
+def scrape_prices(symbol_map: dict[str, int], http_session: CffiSession, crumb: str):
+    """Download price history for each stock and upsert into the database."""
+    logger.info(f"Downloading prices for {len(symbol_map)} stocks...")
+    total = 0
 
-    try:
-        crumb = _get_yahoo_crumb(http_session)
-        logger.info(f"Obtained Yahoo crumb: {crumb[:8]}...")
-    except Exception:
-        logger.exception("Failed to obtain Yahoo crumb — skipping financials")
-        return 0
+    for symbol, stock_id in symbol_map.items():
+        try:
+            rows = _fetch_chart(symbol, http_session, crumb, HISTORY_PERIOD)
+            if not rows:
+                logger.warning(f"{symbol}: no price data returned")
+                continue
 
+            with Session() as db_session:
+                for r in rows:
+                    db_session.execute(
+                        text("""
+                            INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+                            VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
+                            ON CONFLICT (stock_id, date)
+                            DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
+                                          low=EXCLUDED.low, close=EXCLUDED.close,
+                                          volume=EXCLUDED.volume
+                        """),
+                        {"stock_id": stock_id, **r},
+                    )
+                db_session.commit()
+
+            total += len(rows)
+            logger.info(f"{symbol}: {len(rows)} price rows")
+        except Exception:
+            logger.exception(f"Error scraping prices for {symbol}")
+        time.sleep(1)
+
+    logger.info(f"Prices done — {total} total rows upserted")
+    return total
+
+
+def scrape_financials(symbol_map: dict[str, int], http_session: CffiSession, crumb: str):
+    """Fetch financial data for each stock from Yahoo Finance API."""
     count = 0
 
     for symbol, stock_id in symbol_map.items():
@@ -209,7 +210,7 @@ def scrape_financials(symbol_map: dict[str, int]):
         except Exception:
             logger.exception(f"Error scraping financials for {symbol}")
 
-        time.sleep(2)  # rate-limit between calls
+        time.sleep(2)
 
     logger.info(f"Financials done — {count}/{len(symbol_map)} stocks")
     return count
@@ -221,8 +222,16 @@ def run_scrape():
     symbol_map = {symbol: stock_id for stock_id, symbol in tracked}
     logger.info(f"Starting scrape for {len(symbol_map)} stocks...")
 
-    scrape_prices(symbol_map)
-    scrape_financials(symbol_map)
+    http_session = _make_session()
+    try:
+        crumb = _get_yahoo_crumb(http_session)
+        logger.info(f"Obtained Yahoo crumb: {crumb[:8]}...")
+    except Exception:
+        logger.exception("Failed to obtain Yahoo crumb — cannot scrape")
+        return
+
+    scrape_prices(symbol_map, http_session, crumb)
+    scrape_financials(symbol_map, http_session, crumb)
 
     logger.info("Scrape complete")
 
