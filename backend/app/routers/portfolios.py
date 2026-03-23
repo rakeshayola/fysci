@@ -1,5 +1,7 @@
 import csv
 import io
+import logging
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
@@ -8,8 +10,22 @@ from app.database import get_db
 from app.models import User, Portfolio, PortfolioHolding, Stock, StockPrice
 from app.schemas import PortfolioCreate, PortfolioOut, HoldingCreate, HoldingOut
 from app.auth import get_current_user
+from app.services.scrape_symbol import scrape_symbol
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _auto_scrape(symbol: str, stock_id: int):
+    """Fire-and-forget background scrape for a newly added stock."""
+    def _run():
+        try:
+            scrape_symbol(symbol, stock_id)
+        except Exception:
+            logger.exception("Background scrape failed for %s", symbol)
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
 
 
 def _get_portfolio(db: Session, portfolio_id: int, user: User) -> Portfolio:
@@ -119,11 +135,16 @@ def add_holding(
     portfolio = _get_portfolio(db, portfolio_id, current_user)
     symbol = req.symbol.upper()
     stock = db.query(Stock).filter(Stock.symbol == symbol).first()
+    is_new_stock = stock is None
     if not stock:
         stock = Stock(symbol=symbol, name=symbol)
         db.add(stock)
         db.commit()
         db.refresh(stock)
+
+    # Auto-scrape prices/financials/news for newly added stocks
+    if is_new_stock:
+        _auto_scrape(stock.symbol, stock.id)
 
     existing = (
         db.query(PortfolioHolding)
@@ -212,6 +233,7 @@ async def upload_holdings(
 
     imported = 0
     skipped = []
+    new_stocks = []  # Track newly created stocks for auto-scrape
 
     for row in rows:
         symbol = str(row.get(sym_key, "")).strip().upper()
@@ -223,6 +245,7 @@ async def upload_holdings(
             stock = Stock(symbol=symbol, name=symbol)
             db.add(stock)
             db.flush()
+            new_stocks.append((stock.symbol, stock.id))
 
         shares_val = row.get(shares_key)
         try:
@@ -258,6 +281,11 @@ async def upload_holdings(
         imported += 1
 
     db.commit()
+
+    # Auto-scrape all newly created stocks in background
+    for sym, sid in new_stocks:
+        _auto_scrape(sym, sid)
+
     return {"imported": imported, "skipped": list(set(skipped))}
 
 
