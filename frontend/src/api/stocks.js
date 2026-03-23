@@ -1,3 +1,5 @@
+import { authFetch } from "./auth.js";
+
 const BASE = "/api";
 
 export async function fetchStocks() {
@@ -109,5 +111,96 @@ export async function runAgent(symbols, query) {
     const err = await res.json().catch(() => ({ detail: "Agent request failed" }));
     throw new Error(err.detail || "Agent request failed");
   }
+  return res.json();
+}
+
+// --- Portfolios ---
+
+export async function fetchPortfolios() {
+  const res = await authFetch(`${BASE}/portfolios/`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to fetch portfolios" }));
+    throw new Error(err.detail || `Failed to fetch portfolios (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function createPortfolio(data) {
+  const res = await authFetch(`${BASE}/portfolios/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to create portfolio" }));
+    throw new Error(err.detail || `Failed to create portfolio (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deletePortfolio(id) {
+  const res = await authFetch(`${BASE}/portfolios/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to delete portfolio" }));
+    throw new Error(err.detail || `Failed to delete portfolio (${res.status})`);
+  }
+}
+
+export async function addHolding(portfolioId, data) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/holdings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to add holding" }));
+    throw new Error(err.detail || "Failed to add holding");
+  }
+  return res.json();
+}
+
+export async function removeHolding(portfolioId, holdingId) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/holdings/${holdingId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to remove holding");
+}
+
+export async function uploadHoldings(portfolioId, file, mapping) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const params = new URLSearchParams(mapping);
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/upload?${params}`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  return res.json();
+}
+
+// --- Analysis ---
+
+export async function runAnalysis(symbols, query) {
+  const res = await authFetch(`${BASE}/analysis/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbols, query: query || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Analysis request failed" }));
+    throw new Error(err.detail || "Analysis request failed");
+  }
+  return res.json();
+}
+
+export async function pollAnalysis(analysisId) {
+  const res = await fetch(`${BASE}/analysis/${analysisId}`);
+  if (!res.ok) throw new Error("Failed to poll analysis");
+  return res.json();
+}
+
+export async function fetchAnalysisHistory() {
+  const res = await authFetch(`${BASE}/analysis/history`);
+  if (!res.ok) throw new Error("Failed to fetch analysis history");
   return res.json();
 }

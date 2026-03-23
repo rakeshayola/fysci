@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import stocks, widgets, financials, scraper, status, news, settings, agent
+from app.routers import stocks, widgets, financials, scraper, status, news, settings, agent, auth, portfolios, analysis
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +24,9 @@ app.include_router(status.router, prefix="/api/status", tags=["status"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(portfolios.router, prefix="/api/portfolios", tags=["portfolios"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 
 
 @app.get("/api/health")
