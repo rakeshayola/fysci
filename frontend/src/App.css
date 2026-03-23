@@ -979,6 +979,42 @@ body {
   font-size: 0.82rem;
   line-height: 1.5;
 }
+.markdown-body .md-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.markdown-body .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.markdown-body .md-table th,
+.markdown-body .md-table td {
+  border: 1px solid #30363d;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.markdown-body .md-table th {
+  background: #1c2128;
+  color: #f0f6fc;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.markdown-body .md-table td {
+  color: #e1e4e8;
+}
+.markdown-body .md-table tbody tr:nth-child(even) {
+  background: rgba(22, 27, 34, 0.5);
+}
+.markdown-body .md-table tbody tr:hover {
+  background: rgba(48, 54, 61, 0.5);
+}
+.markdown-body blockquote {
+  border-left: 3px solid #30363d;
+  padding: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  color: #8b949e;
+}
 .markdown-body hr {
   border: none;
   border-top: 1px solid #30363d;
