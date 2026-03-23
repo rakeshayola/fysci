@@ -73,3 +73,41 @@ export async function fetchFinancials(symbol) {
   }
   return res.json();
 }
+
+// --- LLM Settings ---
+
+export async function fetchSettings() {
+  const res = await fetch(`${BASE}/settings/`);
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json();
+}
+
+export async function saveSettings(data) {
+  const res = await fetch(`${BASE}/settings/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to save settings");
+  return res.json();
+}
+
+export async function deleteSettings() {
+  const res = await fetch(`${BASE}/settings/`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete settings");
+}
+
+// --- Research Agent ---
+
+export async function runAgent(symbols, query) {
+  const res = await fetch(`${BASE}/agent/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbols, query: query || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Agent request failed" }));
+    throw new Error(err.detail || "Agent request failed");
+  }
+  return res.json();
+}

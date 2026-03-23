@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS stock_news (
     UNIQUE(stock_id, url)
 );
 
+CREATE TABLE IF NOT EXISTS llm_settings (
+    id SERIAL PRIMARY KEY,
+    provider VARCHAR(50) NOT NULL,
+    api_key VARCHAR(500) NOT NULL,
+    model_name VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Seed some sample stocks
 INSERT INTO stocks (symbol, name, sector) VALUES
     ('AAPL', 'Apple Inc.', 'Technology'),

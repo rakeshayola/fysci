@@ -105,3 +105,36 @@ class WidgetOut(WidgetBase):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- LLM Settings ---
+
+class LlmSettingCreate(BaseModel):
+    provider: str
+    api_key: str
+    model_name: Optional[str] = None
+
+
+class LlmSettingOut(BaseModel):
+    id: int
+    provider: str
+    api_key_masked: str
+    model_name: Optional[str] = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+# --- Agent ---
+
+class AgentRequest(BaseModel):
+    symbols: list[str]
+    query: Optional[str] = None
+
+
+class AgentResponse(BaseModel):
+    provider: str
+    model: str
+    symbols: list[str]
+    analysis: str
+    timestamp: datetime
