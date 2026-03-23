@@ -50,7 +50,7 @@ export default function PortfolioManager() {
   useEffect(() => {
     fetchPortfolios()
       .then((data) => setPortfolios(data))
-      .catch(() => {})
+      .catch((err) => setMsg(err.message || "Failed to load portfolios"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -66,7 +66,7 @@ export default function PortfolioManager() {
       setNewDesc("");
       setMsg("Portfolio created");
     } catch (err) {
-      setMsg("Failed to create portfolio");
+      setMsg(err.message || "Failed to create portfolio");
     } finally {
       setCreating(false);
       setTimeout(() => setMsg(""), 3000);
@@ -80,8 +80,8 @@ export default function PortfolioManager() {
       setPortfolios((prev) => prev.filter((p) => p.id !== selected.id));
       setSelected(null);
       setMsg("Portfolio deleted");
-    } catch {
-      setMsg("Failed to delete");
+    } catch (err) {
+      setMsg(err.message || "Failed to delete");
     }
     setTimeout(() => setMsg(""), 3000);
   };

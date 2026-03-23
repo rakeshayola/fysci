@@ -118,7 +118,10 @@ export async function runAgent(symbols, query) {
 
 export async function fetchPortfolios() {
   const res = await authFetch(`${BASE}/portfolios/`);
-  if (!res.ok) throw new Error("Failed to fetch portfolios");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to fetch portfolios" }));
+    throw new Error(err.detail || `Failed to fetch portfolios (${res.status})`);
+  }
   return res.json();
 }
 
@@ -128,13 +131,19 @@ export async function createPortfolio(data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to create portfolio");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to create portfolio" }));
+    throw new Error(err.detail || `Failed to create portfolio (${res.status})`);
+  }
   return res.json();
 }
 
 export async function deletePortfolio(id) {
   const res = await authFetch(`${BASE}/portfolios/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete portfolio");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to delete portfolio" }));
+    throw new Error(err.detail || `Failed to delete portfolio (${res.status})`);
+  }
 }
 
 export async function addHolding(portfolioId, data) {

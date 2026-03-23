@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
@@ -40,16 +43,24 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     if token is None:
+        logger.warning("Auth failed: no token provided (Authorization header missing)")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        raw_sub = payload.get("sub")
+        if raw_sub is None:
+            logger.warning("Auth failed: token has no 'sub' claim")
             raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
+        user_id = int(raw_sub)
+    except JWTError as e:
+        logger.warning("Auth failed: JWT decode error: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except (ValueError, TypeError) as e:
+        logger.warning("Auth failed: invalid sub value: %s", e)
         raise HTTPException(status_code=401, detail="Invalid token")
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
+        logger.warning("Auth failed: user_id=%s not found in database", user_id)
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
@@ -62,9 +73,10 @@ def get_optional_user(
         return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if user_id is None:
+        raw_sub = payload.get("sub")
+        if raw_sub is None:
             return None
+        user_id = int(raw_sub)
         return db.query(User).filter(User.id == user_id).first()
-    except JWTError:
+    except (JWTError, ValueError, TypeError):
         return None
