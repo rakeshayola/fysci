@@ -9,7 +9,6 @@ import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
-import feedparser
 from curl_cffi.requests import Session as CffiSession
 from sqlalchemy import text
 
@@ -150,10 +149,11 @@ def _scrape_financials(symbol: str, stock_id: int, http: CffiSession, crumb: str
 
 def _scrape_news(symbol: str, stock_id: int, http: CffiSession):
     try:
+        import feedparser
         from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
         analyzer = SentimentIntensityAnalyzer()
     except ImportError:
-        logger.warning("vaderSentiment not installed — skipping news scrape for %s", symbol)
+        logger.warning("feedparser/vaderSentiment not installed — skipping news scrape for %s", symbol)
         return 0
 
     query = f"{symbol}+stock"
