@@ -8,7 +8,7 @@ import {
   uploadHoldings,
 } from "../api/stocks.js";
 
-export default function PortfolioManager() {
+export default function PortfolioManager({ onChanged }) {
   const [portfolios, setPortfolios] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,7 @@ export default function PortfolioManager() {
       setNewName("");
       setNewDesc("");
       setMsg("Portfolio created");
+      onChanged?.();
     } catch (err) {
       setMsg(err.message || "Failed to create portfolio");
     } finally {
@@ -80,6 +81,7 @@ export default function PortfolioManager() {
       setPortfolios((prev) => prev.filter((p) => p.id !== selected.id));
       setSelected(null);
       setMsg("Portfolio deleted");
+      onChanged?.();
     } catch (err) {
       setMsg(err.message || "Failed to delete");
     }
@@ -100,6 +102,7 @@ export default function PortfolioManager() {
       setHoldSymbol("");
       setHoldShares("");
       setHoldCost("");
+      onChanged?.();
     } catch (err) {
       setMsg(err.message);
       setTimeout(() => setMsg(""), 3000);
@@ -113,6 +116,7 @@ export default function PortfolioManager() {
     try {
       await removeHolding(selected.id, holdingId);
       await reload();
+      onChanged?.();
     } catch {
       setMsg("Failed to remove holding");
       setTimeout(() => setMsg(""), 3000);
@@ -132,6 +136,7 @@ export default function PortfolioManager() {
       setUploadResult(result);
       await reload();
       setUploadFile(null);
+      onChanged?.();
     } catch {
       setMsg("Upload failed");
       setTimeout(() => setMsg(""), 3000);

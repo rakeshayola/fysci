@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchSettings, runAnalysis, pollAnalysis, fetchAnalysisHistory } from "../api/stocks.js";
+import MarkdownRenderer from "./MarkdownRenderer.jsx";
 
 const PRESETS = [
   { label: "Full Analysis", query: null },
@@ -176,7 +177,9 @@ export default function AgentPanel({ selectedSymbols }) {
 
         {result && result.status === "completed" && (
           <div className="agent-result">
-            <pre className="agent-analysis">{result.analysis}</pre>
+            <div className="agent-analysis">
+              <MarkdownRenderer content={result.analysis} />
+            </div>
             <div className="agent-meta">
               {isCached && <span className="cached-badge">Cached</span>}
               Powered by {result.provider} &middot; {result.model} &middot;{" "}

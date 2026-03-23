@@ -9,27 +9,45 @@ import AgentPanel from "./components/AgentPanel.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import PortfolioManager from "./components/PortfolioManager.jsx";
 import StatusBar from "./components/StatusBar.jsx";
-import { fetchStocks } from "./api/stocks.js";
+import { fetchStocks, fetchPortfolios } from "./api/stocks.js";
 import "./App.css";
 
 function AppContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const [stocks, setStocks] = useState([]);
+  const [portfolios, setPortfolios] = useState([]);
   const [selectedSymbols, setSelectedSymbols] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = () => {
     if (!user) return;
-    fetchStocks()
-      .then((data) => {
-        setStocks(data);
-        if (data.length > 0) {
-          setSelectedSymbols([data[0].symbol]);
+    Promise.all([
+      fetchStocks().catch(() => []),
+      fetchPortfolios().catch(() => []),
+    ])
+      .then(([stockData, portfolioData]) => {
+        setStocks(stockData);
+        setPortfolios(portfolioData);
+        // Auto-select portfolio holding symbols, fallback to first stock
+        const holdingSymbols = [
+          ...new Set(
+            portfolioData.flatMap((p) =>
+              (p.holdings || []).map((h) => h.symbol).filter(Boolean)
+            )
+          ),
+        ];
+        if (holdingSymbols.length > 0) {
+          setSelectedSymbols(holdingSymbols);
+        } else if (stockData.length > 0) {
+          setSelectedSymbols([stockData[0].symbol]);
         }
       })
-      .catch((err) => console.error(err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, [user]);
 
   const toggleStock = (symbol) => {
@@ -104,6 +122,7 @@ function AppContent() {
       <div className="app-body">
         <StockSidebar
           stocks={stocks}
+          portfolios={portfolios}
           selectedSymbols={selectedSymbols}
           onToggle={toggleStock}
         />
@@ -111,7 +130,7 @@ function AppContent() {
         {activeTab === "finances" && <FinancesPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "news" && <NewsPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "agent" && <AgentPanel selectedSymbols={selectedSymbols} />}
-        {activeTab === "portfolio" && <PortfolioManager />}
+        {activeTab === "portfolio" && <PortfolioManager onChanged={loadData} />}
         {activeTab === "settings" && <SettingsPanel />}
       </div>
       <StatusBar selectedSymbols={selectedSymbols} />

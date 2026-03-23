@@ -117,9 +117,13 @@ def add_holding(
     current_user: User = Depends(get_current_user),
 ):
     portfolio = _get_portfolio(db, portfolio_id, current_user)
-    stock = db.query(Stock).filter(Stock.symbol == req.symbol.upper()).first()
+    symbol = req.symbol.upper()
+    stock = db.query(Stock).filter(Stock.symbol == symbol).first()
     if not stock:
-        raise HTTPException(status_code=404, detail=f"Stock '{req.symbol}' not found")
+        stock = Stock(symbol=symbol, name=symbol)
+        db.add(stock)
+        db.commit()
+        db.refresh(stock)
 
     existing = (
         db.query(PortfolioHolding)
@@ -216,8 +220,9 @@ async def upload_holdings(
 
         stock = db.query(Stock).filter(Stock.symbol == symbol).first()
         if not stock:
-            skipped.append(symbol)
-            continue
+            stock = Stock(symbol=symbol, name=symbol)
+            db.add(stock)
+            db.flush()
 
         shares_val = row.get(shares_key)
         try:
