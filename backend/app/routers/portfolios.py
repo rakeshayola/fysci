@@ -289,26 +289,50 @@ async def upload_holdings(
     return {"imported": imported, "skipped": list(set(skipped))}
 
 
-def _is_etf(symbol: str) -> bool:
-    """Heuristic: index symbols start with ^; common ETFs are 3-4 letter uppercase without dots."""
-    known_etfs = {
-        "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "VEA", "VWO", "BND", "AGG",
-        "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB",
-        "XLU", "XLRE", "IVV", "EFA", "EEM", "TLT", "HYG", "LQD", "ARKK", "ARKG",
-        "SCHD", "VIG", "VYM", "JEPI", "JEPQ", "VGT", "SOXX", "SMH", "IWF", "IWD",
-        "VTV", "VUG", "IJR", "IJH", "MDY", "RSP",
-    }
-    return symbol.upper() in known_etfs
+def _is_etf(sector: str | None) -> bool:
+    """Detect ETFs by their sector label (set by scraper from Yahoo quoteType/sector)."""
+    return (sector or "").upper() == "ETF"
 
 
 def _fetch_expense_ratio(symbol: str) -> float | None:
-    """Try to get ETF expense ratio via yfinance."""
+    """Fetch ETF expense ratio from Yahoo Finance quoteSummary API."""
     try:
-        import yfinance as yf
-        info = yf.Ticker(symbol).info
-        return info.get("annualReportExpenseRatio") or info.get("totalExpenseRatio") or None
+        from curl_cffi.requests import Session as CffiSession
+        http = CffiSession(impersonate="chrome")
+        http.get("https://fc.yahoo.com", allow_redirects=True)
+        crumb_resp = http.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+        crumb_resp.raise_for_status()
+        crumb = crumb_resp.text.strip()
+        if not crumb:
+            return None
+
+        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+        resp = http.get(url, params={"modules": "defaultKeyStatistics,fundProfile", "crumb": crumb})
+        resp.raise_for_status()
+        data = resp.json()
+        result = data.get("quoteSummary", {}).get("result")
+        if not result:
+            return None
+        modules = result[0]
+        # Look in multiple modules for expense ratio
+        for module in modules.values():
+            if not isinstance(module, dict):
+                continue
+            for key in ("annualReportExpenseRatio", "totalExpenseRatio",
+                        "annualHoldingsTurnover"):
+                val = module.get(key)
+                if isinstance(val, dict) and val.get("raw") is not None:
+                    if "expenseRatio" in key.lower() or key == "annualReportExpenseRatio":
+                        return val["raw"]
+            # fundProfile has feesExpensesInvestment -> annualReportExpenseRatio
+            fees = module.get("feesExpensesInvestment")
+            if isinstance(fees, dict):
+                er = fees.get("annualReportExpenseRatio")
+                if isinstance(er, dict) and er.get("raw") is not None:
+                    return er["raw"]
     except Exception:
-        return None
+        pass
+    return None
 
 
 @router.get("/{portfolio_id}/summary")
@@ -357,7 +381,7 @@ def portfolio_summary(
             total_cost += cost_basis
 
         # ETF expense ratio
-        is_etf = _is_etf(symbol)
+        is_etf = _is_etf(sector)
         expense_ratio = None
         if is_etf:
             expense_ratio = _fetch_expense_ratio(symbol)

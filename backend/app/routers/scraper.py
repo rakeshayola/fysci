@@ -161,6 +161,29 @@ def trigger_scrape():
                 if not info:
                     continue
 
+                # Update stock name and sector from Yahoo data
+                long_name = info.get("longName") or info.get("shortName")
+                sector = info.get("sector")
+                quote_type = info.get("quoteType", "")
+                if long_name or sector or quote_type == "ETF":
+                    update_parts = []
+                    params = {"stock_id": symbol_map[symbol]}
+                    if long_name:
+                        update_parts.append("name = :name")
+                        params["name"] = long_name
+                    if sector:
+                        update_parts.append("sector = :sector")
+                        params["sector"] = sector
+                    elif quote_type == "ETF":
+                        update_parts.append("sector = :sector")
+                        params["sector"] = "ETF"
+                    if update_parts:
+                        with engine.begin() as conn:
+                            conn.execute(
+                                text(f"UPDATE stocks SET {', '.join(update_parts)} WHERE id = :stock_id"),
+                                params,
+                            )
+
                 fin_data = {
                     "stock_id": symbol_map[symbol],
                     "pe_ratio": info.get("trailingPE"),

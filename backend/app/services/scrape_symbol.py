@@ -108,6 +108,29 @@ def _scrape_financials(symbol: str, stock_id: int, http: CffiSession, crumb: str
             elif not isinstance(val, (dict, list)):
                 flat[key] = val
 
+    # Update stock name and sector from Yahoo data
+    long_name = flat.get("longName") or flat.get("shortName")
+    sector = flat.get("sector")
+    quote_type = flat.get("quoteType", "")
+    if long_name or sector:
+        update_parts = []
+        params: dict = {"stock_id": stock_id}
+        if long_name:
+            update_parts.append("name = :name")
+            params["name"] = long_name
+        if sector:
+            update_parts.append("sector = :sector")
+            params["sector"] = sector
+        elif quote_type == "ETF":
+            update_parts.append("sector = :sector")
+            params["sector"] = "ETF"
+        if update_parts:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(f"UPDATE stocks SET {', '.join(update_parts)} WHERE id = :stock_id"),
+                    params,
+                )
+
     fin_data = {
         "stock_id": stock_id,
         "pe_ratio": flat.get("trailingPE"),
@@ -144,7 +167,7 @@ def _scrape_financials(symbol: str, stock_id: int, http: CffiSession, crumb: str
             """),
             fin_data,
         )
-    return True
+    return flat
 
 
 def _scrape_news(symbol: str, stock_id: int, http: CffiSession):
