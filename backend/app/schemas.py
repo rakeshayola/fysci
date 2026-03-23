@@ -138,3 +138,91 @@ class AgentResponse(BaseModel):
     symbols: list[str]
     analysis: str
     timestamp: datetime
+
+
+# --- Auth ---
+
+class RegisterRequest(BaseModel):
+    email: str
+    username: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    username: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+# --- Portfolios ---
+
+class HoldingCreate(BaseModel):
+    symbol: str
+    shares: float
+    avg_cost: Optional[float] = None
+
+
+class HoldingOut(BaseModel):
+    id: int
+    portfolio_id: int
+    stock_id: int
+    shares: float
+    avg_cost: Optional[float] = None
+    added_at: datetime
+    symbol: Optional[str] = None
+    stock_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PortfolioCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class PortfolioOut(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    holdings: list[HoldingOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+# --- Analysis ---
+
+class AnalysisRequest(BaseModel):
+    symbols: list[str]
+    query: Optional[str] = None
+
+
+class AnalysisOut(BaseModel):
+    id: int
+    symbols: str
+    query: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    analysis: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

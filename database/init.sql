@@ -70,6 +70,48 @@ CREATE TABLE IF NOT EXISTS llm_settings (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS portfolios (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_holdings (
+    id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE NOT NULL,
+    stock_id INTEGER REFERENCES stocks(id) ON DELETE CASCADE NOT NULL,
+    shares NUMERIC(12,4) NOT NULL,
+    avg_cost NUMERIC(12,4),
+    added_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(portfolio_id, stock_id)
+);
+
+CREATE TABLE IF NOT EXISTS stock_analyses (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    symbols VARCHAR(500) NOT NULL,
+    query TEXT,
+    provider VARCHAR(50),
+    model VARCHAR(100),
+    analysis TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    error TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_stock_analyses_lookup ON stock_analyses(user_id, symbols, created_at DESC);
+
 -- Seed some sample stocks
 INSERT INTO stocks (symbol, name, sector) VALUES
     ('AAPL', 'Apple Inc.', 'Technology'),

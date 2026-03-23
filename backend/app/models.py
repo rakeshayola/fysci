@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -96,3 +96,62 @@ class LlmSetting(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    portfolios = relationship("Portfolio", back_populates="owner")
+
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    owner = relationship("User", back_populates="portfolios")
+    holdings = relationship("PortfolioHolding", back_populates="portfolio", cascade="all, delete-orphan")
+
+
+class PortfolioHolding(Base):
+    __tablename__ = "portfolio_holdings"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "stock_id", name="uq_portfolio_stock"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    shares = Column(Numeric(12, 4), nullable=False)
+    avg_cost = Column(Numeric(12, 4))
+    added_at = Column(DateTime, server_default=func.now())
+
+    portfolio = relationship("Portfolio", back_populates="holdings")
+    stock = relationship("Stock")
+
+
+class StockAnalysis(Base):
+    __tablename__ = "stock_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    symbols = Column(String(500), nullable=False)
+    query = Column(Text)
+    provider = Column(String(50))
+    model = Column(String(100))
+    analysis = Column(Text)
+    status = Column(String(20), default="pending")
+    error = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())

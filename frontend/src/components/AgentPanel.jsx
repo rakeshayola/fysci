@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { fetchSettings, runAgent } from "../api/stocks.js";
+import { fetchSettings, runAnalysis, pollAnalysis, fetchAnalysisHistory } from "../api/stocks.js";
 
 const PRESETS = [
   { label: "Full Analysis", query: null },
@@ -27,6 +27,9 @@ export default function AgentPanel({ selectedSymbols }) {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [isCached, setIsCached] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     fetchSettings()
@@ -35,16 +38,49 @@ export default function AgentPanel({ selectedSymbols }) {
       .finally(() => setSettingsLoading(false));
   }, []);
 
+  const loadHistory = async () => {
+    try {
+      const data = await fetchAnalysisHistory();
+      setHistory(data);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const handleRun = async (customQuery) => {
     setRunning(true);
     setError("");
     setResult(null);
+    setIsCached(false);
     try {
-      const res = await runAgent(selectedSymbols, customQuery);
-      setResult(res);
+      const res = await runAnalysis(selectedSymbols, customQuery);
+      if (res.status === "completed") {
+        const age = Date.now() - new Date(res.created_at).getTime();
+        setIsCached(age > 5000);
+        setResult(res);
+        setRunning(false);
+      } else if (res.status === "running") {
+        const interval = setInterval(async () => {
+          try {
+            const updated = await pollAnalysis(res.id);
+            if (updated.status === "completed" || updated.status === "failed") {
+              clearInterval(interval);
+              setResult(updated);
+              setRunning(false);
+              if (updated.status === "failed") setError(updated.error || "Analysis failed");
+            }
+          } catch {
+            clearInterval(interval);
+            setRunning(false);
+            setError("Failed to poll analysis status");
+          }
+        }, 3000);
+      } else if (res.status === "failed") {
+        setError(res.error || "Analysis failed");
+        setRunning(false);
+      }
     } catch (err) {
       setError(err.message);
-    } finally {
       setRunning(false);
     }
   };
@@ -83,6 +119,16 @@ export default function AgentPanel({ selectedSymbols }) {
           Research Agent: {selectedSymbols.join(", ")}
         </span>
         <span className="provider-badge">{settings.provider}</span>
+        <button
+          className="toolbar-btn"
+          style={{ marginLeft: "auto" }}
+          onClick={() => {
+            setShowHistory(!showHistory);
+            if (!showHistory) loadHistory();
+          }}
+        >
+          {showHistory ? "Hide History" : "History"}
+        </button>
       </div>
 
       <div className="agent-panel">
@@ -128,12 +174,45 @@ export default function AgentPanel({ selectedSymbols }) {
           </div>
         )}
 
-        {result && (
+        {result && result.status === "completed" && (
           <div className="agent-result">
             <pre className="agent-analysis">{result.analysis}</pre>
             <div className="agent-meta">
+              {isCached && <span className="cached-badge">Cached</span>}
               Powered by {result.provider} &middot; {result.model} &middot;{" "}
-              {new Date(result.timestamp).toLocaleString()}
+              {new Date(result.created_at).toLocaleString()}
+            </div>
+          </div>
+        )}
+
+        {showHistory && (
+          <div className="finance-card" style={{ marginTop: "1rem" }}>
+            <h3>Analysis History</h3>
+            <div className="finance-card-body">
+              {history.length === 0 ? (
+                <p style={{ color: "#8b949e", fontSize: "0.85rem" }}>No past analyses.</p>
+              ) : (
+                <ul className="portfolio-list">
+                  {history.map((h) => (
+                    <li
+                      key={h.id}
+                      className="portfolio-item"
+                      onClick={() => {
+                        setResult(h);
+                        setIsCached(true);
+                        setError("");
+                      }}
+                    >
+                      <span className="portfolio-name" style={{ fontSize: "0.8rem" }}>
+                        {h.symbols} — {h.query ? h.query.slice(0, 50) + (h.query.length > 50 ? "..." : "") : "Full Analysis"}
+                      </span>
+                      <span className="portfolio-count">
+                        {h.status} &middot; {new Date(h.created_at).toLocaleDateString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

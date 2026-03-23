@@ -951,3 +951,148 @@ body {
   border-top: 1px solid #30363d;
   background: #0d1117;
 }
+
+.cached-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+  margin-right: 0.5rem;
+}
+
+/* ===== Login Page ===== */
+
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #0f1117;
+}
+
+.login-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #f0f6fc;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.login-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #30363d;
+}
+
+.login-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.login-tab:hover {
+  color: #c9d1d9;
+}
+
+.login-tab--active {
+  color: #58a6ff;
+  border-bottom-color: #58a6ff;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.login-error {
+  color: #f85149;
+  font-size: 0.82rem;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.login-submit {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* ===== Header User ===== */
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.header-username {
+  font-size: 0.8rem;
+  color: #8b949e;
+  font-weight: 500;
+}
+
+/* ===== Portfolio ===== */
+
+.portfolio-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portfolio-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #21262d;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.portfolio-item:last-child {
+  border-bottom: none;
+}
+
+.portfolio-item:hover {
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.portfolio-item--active {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.portfolio-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e1e4e8;
+}
+
+.portfolio-count {
+  font-size: 0.75rem;
+  color: #8b949e;
+}
