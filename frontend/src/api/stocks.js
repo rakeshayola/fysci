@@ -184,6 +184,17 @@ export async function uploadHoldings(portfolioId, file, mapping) {
   return res.json();
 }
 
+export async function fetchSectorAnalysis(portfolioId) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/sector-analysis`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Sector analysis failed" }));
+    throw new Error(err.detail || "Sector analysis failed");
+  }
+  return res.json();
+}
+
 // --- Analysis ---
 
 export async function runAnalysis(symbols, query) {

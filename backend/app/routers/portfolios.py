@@ -261,6 +261,28 @@ async def upload_holdings(
     return {"imported": imported, "skipped": list(set(skipped))}
 
 
+def _is_etf(symbol: str) -> bool:
+    """Heuristic: index symbols start with ^; common ETFs are 3-4 letter uppercase without dots."""
+    known_etfs = {
+        "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "VEA", "VWO", "BND", "AGG",
+        "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB",
+        "XLU", "XLRE", "IVV", "EFA", "EEM", "TLT", "HYG", "LQD", "ARKK", "ARKG",
+        "SCHD", "VIG", "VYM", "JEPI", "JEPQ", "VGT", "SOXX", "SMH", "IWF", "IWD",
+        "VTV", "VUG", "IJR", "IJH", "MDY", "RSP",
+    }
+    return symbol.upper() in known_etfs
+
+
+def _fetch_expense_ratio(symbol: str) -> float | None:
+    """Try to get ETF expense ratio via yfinance."""
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).info
+        return info.get("annualReportExpenseRatio") or info.get("totalExpenseRatio") or None
+    except Exception:
+        return None
+
+
 @router.get("/{portfolio_id}/summary")
 def portfolio_summary(
     portfolio_id: int,
@@ -283,6 +305,7 @@ def portfolio_summary(
     for h in portfolio.holdings:
         symbol = h.stock.symbol if h.stock else "?"
         name = h.stock.name if h.stock else symbol
+        sector = h.stock.sector if h.stock else None
         shares = float(h.shares)
         avg_cost = float(h.avg_cost) if h.avg_cost else None
 
@@ -305,10 +328,19 @@ def portfolio_summary(
         if cost_basis is not None:
             total_cost += cost_basis
 
+        # ETF expense ratio
+        is_etf = _is_etf(symbol)
+        expense_ratio = None
+        if is_etf:
+            expense_ratio = _fetch_expense_ratio(symbol)
+
         holdings_data.append({
             "id": h.id,
             "symbol": symbol,
             "stock_name": name,
+            "sector": sector,
+            "is_etf": is_etf,
+            "expense_ratio": expense_ratio,
             "shares": shares,
             "avg_cost": avg_cost,
             "current_price": current_price,
@@ -321,6 +353,17 @@ def portfolio_summary(
     total_gain = total_value - total_cost if total_cost > 0 else None
     total_gain_pct = (total_gain / total_cost * 100) if total_gain is not None and total_cost > 0 else None
 
+    # Sector allocation
+    sector_map = {}
+    for h in holdings_data:
+        sec = h.get("sector") or "Unknown"
+        val = h.get("current_value") or 0
+        sector_map[sec] = sector_map.get(sec, 0) + val
+    sector_allocation = []
+    for sec, val in sorted(sector_map.items(), key=lambda x: -x[1]):
+        pct = (val / total_value * 100) if total_value > 0 else 0
+        sector_allocation.append({"sector": sec, "value": round(val, 2), "pct": round(pct, 2)})
+
     return {
         "portfolio_id": portfolio.id,
         "name": portfolio.name,
@@ -329,4 +372,80 @@ def portfolio_summary(
         "total_gain": round(total_gain, 2) if total_gain is not None else None,
         "total_gain_pct": round(total_gain_pct, 2) if total_gain_pct is not None else None,
         "holdings": holdings_data,
+        "sector_allocation": sector_allocation,
+    }
+
+
+@router.post("/{portfolio_id}/sector-analysis")
+def sector_analysis(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Use configured LLM to analyze risk score and growth potential per sector."""
+    portfolio = (
+        db.query(Portfolio)
+        .options(joinedload(Portfolio.holdings).joinedload(PortfolioHolding.stock))
+        .filter(Portfolio.id == portfolio_id, Portfolio.user_id == current_user.id)
+        .first()
+    )
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    if not portfolio.holdings:
+        raise HTTPException(status_code=400, detail="Portfolio has no holdings to analyze")
+
+    from app.services.research_agent import run_research
+
+    symbols = []
+    sector_holdings = {}
+    for h in portfolio.holdings:
+        sym = h.stock.symbol if h.stock else "?"
+        sec = h.stock.sector if h.stock else "Unknown"
+        symbols.append(sym)
+        sector_holdings.setdefault(sec, []).append(sym)
+
+    sector_desc = "; ".join(
+        f"{sec}: [{', '.join(syms)}]" for sec, syms in sector_holdings.items()
+    )
+
+    query = (
+        f"The user's portfolio is grouped by sectors: {sector_desc}. "
+        "For EACH sector, provide:\n"
+        "1. Risk Score (1-10, where 1=very low risk, 10=very high risk)\n"
+        "2. Growth Potential (1-10, where 1=very low growth, 10=very high growth)\n"
+        "3. A brief 1-2 sentence justification.\n\n"
+        "IMPORTANT: Return your analysis as a JSON array with objects having keys: "
+        '"sector", "risk_score", "growth_potential", "justification". '
+        "Return ONLY the JSON array, no markdown fences or extra text."
+    )
+
+    try:
+        result = run_research(db, symbols, query)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Try to parse structured JSON from the LLM response
+    import json as json_mod
+    analysis_text = result.get("analysis", "")
+    sector_scores = []
+    try:
+        # Strip markdown code fences if present
+        cleaned = analysis_text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        sector_scores = json_mod.loads(cleaned)
+    except (json_mod.JSONDecodeError, ValueError):
+        # Return raw analysis if JSON parsing fails
+        pass
+
+    return {
+        "portfolio_id": portfolio.id,
+        "provider": result.get("provider"),
+        "model": result.get("model"),
+        "sector_scores": sector_scores,
+        "raw_analysis": analysis_text,
     }
