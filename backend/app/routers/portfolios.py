@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import User, Portfolio, PortfolioHolding, Stock
+from app.models import User, Portfolio, PortfolioHolding, Stock, StockPrice
 from app.schemas import PortfolioCreate, PortfolioOut, HoldingCreate, HoldingOut
 from app.auth import get_current_user
 
@@ -259,3 +259,74 @@ async def upload_holdings(
 
     db.commit()
     return {"imported": imported, "skipped": list(set(skipped))}
+
+
+@router.get("/{portfolio_id}/summary")
+def portfolio_summary(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    portfolio = (
+        db.query(Portfolio)
+        .options(joinedload(Portfolio.holdings).joinedload(PortfolioHolding.stock))
+        .filter(Portfolio.id == portfolio_id, Portfolio.user_id == current_user.id)
+        .first()
+    )
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    holdings_data = []
+    total_value = 0.0
+    total_cost = 0.0
+
+    for h in portfolio.holdings:
+        symbol = h.stock.symbol if h.stock else "?"
+        name = h.stock.name if h.stock else symbol
+        shares = float(h.shares)
+        avg_cost = float(h.avg_cost) if h.avg_cost else None
+
+        # Get latest closing price
+        latest_price_row = (
+            db.query(StockPrice)
+            .filter(StockPrice.stock_id == h.stock_id)
+            .order_by(StockPrice.date.desc())
+            .first()
+        )
+        current_price = float(latest_price_row.close) if latest_price_row and latest_price_row.close else None
+
+        current_value = shares * current_price if current_price else None
+        cost_basis = shares * avg_cost if avg_cost else None
+        gain = current_value - cost_basis if current_value is not None and cost_basis is not None else None
+        gain_pct = (gain / cost_basis * 100) if gain is not None and cost_basis else None
+
+        if current_value is not None:
+            total_value += current_value
+        if cost_basis is not None:
+            total_cost += cost_basis
+
+        holdings_data.append({
+            "id": h.id,
+            "symbol": symbol,
+            "stock_name": name,
+            "shares": shares,
+            "avg_cost": avg_cost,
+            "current_price": current_price,
+            "current_value": round(current_value, 2) if current_value else None,
+            "cost_basis": round(cost_basis, 2) if cost_basis else None,
+            "gain": round(gain, 2) if gain is not None else None,
+            "gain_pct": round(gain_pct, 2) if gain_pct is not None else None,
+        })
+
+    total_gain = total_value - total_cost if total_cost > 0 else None
+    total_gain_pct = (total_gain / total_cost * 100) if total_gain is not None and total_cost > 0 else None
+
+    return {
+        "portfolio_id": portfolio.id,
+        "name": portfolio.name,
+        "net_worth": round(total_value, 2),
+        "total_cost": round(total_cost, 2),
+        "total_gain": round(total_gain, 2) if total_gain is not None else None,
+        "total_gain_pct": round(total_gain_pct, 2) if total_gain_pct is not None else None,
+        "holdings": holdings_data,
+    }

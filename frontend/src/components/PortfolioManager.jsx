@@ -6,12 +6,38 @@ import {
   addHolding,
   removeHolding,
   uploadHoldings,
+  fetchPortfolioSummary,
 } from "../api/stocks.js";
+
+function formatCurrency(val) {
+  if (val == null) return "—";
+  return val < 0
+    ? `-$${Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function GainBadge({ value, pct }) {
+  if (value == null) return <span style={{ color: "#8b949e" }}>—</span>;
+  const color = value >= 0 ? "#3fb950" : "#f85149";
+  const sign = value >= 0 ? "+" : "";
+  return (
+    <span style={{ color, fontWeight: 600 }}>
+      {sign}{formatCurrency(value)}
+      {pct != null && (
+        <span style={{ fontSize: "0.78rem", marginLeft: 4, opacity: 0.85 }}>
+          ({sign}{pct.toFixed(2)}%)
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function PortfolioManager({ onChanged }) {
   const [portfolios, setPortfolios] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Create form
   const [newName, setNewName] = useState("");
@@ -47,12 +73,32 @@ export default function PortfolioManager({ onChanged }) {
     }
   };
 
+  const loadSummary = async (portfolioId) => {
+    setSummaryLoading(true);
+    try {
+      const data = await fetchPortfolioSummary(portfolioId);
+      setSummary(data);
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPortfolios()
       .then((data) => setPortfolios(data))
       .catch((err) => setMsg(err.message || "Failed to load portfolios"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (selected) {
+      loadSummary(selected.id);
+    } else {
+      setSummary(null);
+    }
+  }, [selected]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -103,6 +149,7 @@ export default function PortfolioManager({ onChanged }) {
       setHoldShares("");
       setHoldCost("");
       onChanged?.();
+      loadSummary(selected.id);
     } catch (err) {
       setMsg(err.message);
       setTimeout(() => setMsg(""), 3000);
@@ -117,6 +164,7 @@ export default function PortfolioManager({ onChanged }) {
       await removeHolding(selected.id, holdingId);
       await reload();
       onChanged?.();
+      loadSummary(selected.id);
     } catch {
       setMsg("Failed to remove holding");
       setTimeout(() => setMsg(""), 3000);
@@ -137,6 +185,7 @@ export default function PortfolioManager({ onChanged }) {
       await reload();
       setUploadFile(null);
       onChanged?.();
+      loadSummary(selected.id);
     } catch {
       setMsg("Upload failed");
       setTimeout(() => setMsg(""), 3000);
@@ -207,6 +256,32 @@ export default function PortfolioManager({ onChanged }) {
       {/* Selected portfolio details */}
       {selected && (
         <>
+          {/* Net Worth / Gains Summary */}
+          {summary && (
+            <div className="finances-grid" style={{ marginTop: "1rem" }}>
+              <div className="finance-card">
+                <h3>Net Worth</h3>
+                <div className="finance-card-body" style={{ textAlign: "center" }}>
+                  <div className="portfolio-networth">{formatCurrency(summary.net_worth)}</div>
+                  <div style={{ fontSize: "0.8rem", color: "#8b949e", marginTop: 4 }}>
+                    Cost Basis: {formatCurrency(summary.total_cost)}
+                  </div>
+                </div>
+              </div>
+              <div className="finance-card">
+                <h3>Total Gain / Loss</h3>
+                <div className="finance-card-body" style={{ textAlign: "center" }}>
+                  <div className="portfolio-networth">
+                    <GainBadge value={summary.total_gain} pct={summary.total_gain_pct} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {summaryLoading && (
+            <p className="widget-loading" style={{ marginTop: "0.5rem" }}>Loading summary...</p>
+          )}
+
           <div className="finance-card" style={{ marginTop: "1rem" }}>
             <h3>
               {selected.name}
@@ -226,8 +301,48 @@ export default function PortfolioManager({ onChanged }) {
                 </p>
               )}
 
-              {/* Holdings table */}
-              {selected.holdings && selected.holdings.length > 0 ? (
+              {/* Holdings table with gains */}
+              {summary && summary.holdings.length > 0 ? (
+                <div className="widget-table-wrap">
+                  <table className="widget-table">
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th>Shares</th>
+                        <th>Avg Cost</th>
+                        <th>Price</th>
+                        <th>Value</th>
+                        <th>Gain / Loss</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.holdings.map((h) => (
+                        <tr key={h.id}>
+                          <td style={{ color: "#58a6ff", fontWeight: 700 }}>{h.symbol}</td>
+                          <td>{h.stock_name || "—"}</td>
+                          <td>{h.shares}</td>
+                          <td>{h.avg_cost != null ? formatCurrency(h.avg_cost) : "—"}</td>
+                          <td>{h.current_price != null ? formatCurrency(h.current_price) : "—"}</td>
+                          <td>{formatCurrency(h.current_value)}</td>
+                          <td>
+                            <GainBadge value={h.gain} pct={h.gain_pct} />
+                          </td>
+                          <td>
+                            <button
+                              className="widget-remove"
+                              onClick={() => handleRemoveHolding(h.id)}
+                            >
+                              x
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : !summaryLoading && selected.holdings && selected.holdings.length > 0 ? (
                 <div className="widget-table-wrap">
                   <table className="widget-table">
                     <thead>
@@ -245,7 +360,7 @@ export default function PortfolioManager({ onChanged }) {
                           <td style={{ color: "#58a6ff", fontWeight: 700 }}>{h.symbol}</td>
                           <td>{h.stock_name || "—"}</td>
                           <td>{h.shares}</td>
-                          <td>{h.avg_cost != null ? `$${h.avg_cost.toFixed(2)}` : "—"}</td>
+                          <td>{h.avg_cost != null ? formatCurrency(h.avg_cost) : "—"}</td>
                           <td>
                             <button
                               className="widget-remove"

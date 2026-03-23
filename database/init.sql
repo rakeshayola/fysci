@@ -123,7 +123,14 @@ INSERT INTO stocks (symbol, name, sector) VALUES
     ('JNJ', 'Johnson & Johnson', 'Healthcare'),
     ('V', 'Visa Inc.', 'Financial Services'),
     ('NVDA', 'NVIDIA Corporation', 'Technology'),
-    ('META', 'Meta Platforms Inc.', 'Technology')
+    ('META', 'Meta Platforms Inc.', 'Technology'),
+    ('^GSPC', 'S&P 500', 'Index'),
+    ('^IXIC', 'NASDAQ Composite', 'Index'),
+    ('^DJI', 'Dow Jones Industrial Average', 'Index'),
+    ('^RUT', 'Russell 2000', 'Index'),
+    ('^VIX', 'CBOE Volatility Index', 'Index'),
+    ('^FTSE', 'FTSE 100', 'Index'),
+    ('^N225', 'Nikkei 225', 'Index')
 ON CONFLICT (symbol) DO NOTHING;
 
 -- Seed some sample daily prices (last 5 days of fake data)

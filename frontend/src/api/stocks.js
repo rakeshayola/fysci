@@ -166,6 +166,12 @@ export async function removeHolding(portfolioId, holdingId) {
   if (!res.ok) throw new Error("Failed to remove holding");
 }
 
+export async function fetchPortfolioSummary(portfolioId) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/summary`);
+  if (!res.ok) throw new Error("Failed to fetch portfolio summary");
+  return res.json();
+}
+
 export async function uploadHoldings(portfolioId, file, mapping) {
   const formData = new FormData();
   formData.append("file", file);
