@@ -3,6 +3,8 @@ import StockSidebar from "./components/StockSidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import FinancesPanel from "./components/FinancesPanel.jsx";
 import NewsPanel from "./components/NewsPanel.jsx";
+import AgentPanel from "./components/AgentPanel.jsx";
+import SettingsPanel from "./components/SettingsPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import { fetchStocks } from "./api/stocks.js";
 import "./App.css";
@@ -60,6 +62,18 @@ export default function App() {
           >
             News
           </button>
+          <button
+            className={`tab-btn ${activeTab === "agent" ? "tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("agent")}
+          >
+            Agent
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "settings" ? "tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("settings")}
+          >
+            Settings
+          </button>
         </nav>
       </header>
       <div className="app-body">
@@ -71,6 +85,8 @@ export default function App() {
         {activeTab === "dashboard" && <Dashboard selectedSymbols={selectedSymbols} />}
         {activeTab === "finances" && <FinancesPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "news" && <NewsPanel selectedSymbols={selectedSymbols} />}
+        {activeTab === "agent" && <AgentPanel selectedSymbols={selectedSymbols} />}
+        {activeTab === "settings" && <SettingsPanel />}
       </div>
       <StatusBar selectedSymbols={selectedSymbols} />
     </div>

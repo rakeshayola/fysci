@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Integer, String, Numeric, BigInteger, Date, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -84,3 +84,15 @@ class Widget(Base):
     width = Column(Integer, default=1)
     height = Column(Integer, default=1)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class LlmSetting(Base):
+    __tablename__ = "llm_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String(50), unique=True, nullable=False)
+    api_key = Column(String(500), nullable=False)
+    model_name = Column(String(100))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
