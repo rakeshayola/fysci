@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
 YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
-YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile,quoteType"
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
 
 
@@ -112,7 +112,7 @@ def _scrape_financials(symbol: str, stock_id: int, http: CffiSession, crumb: str
     long_name = flat.get("longName") or flat.get("shortName")
     sector = flat.get("sector")
     quote_type = flat.get("quoteType", "")
-    if long_name or sector:
+    if long_name or sector or quote_type == "ETF":
         update_parts = []
         params: dict = {"stock_id": stock_id}
         if long_name:

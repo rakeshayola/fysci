@@ -289,9 +289,20 @@ async def upload_holdings(
     return {"imported": imported, "skipped": list(set(skipped))}
 
 
-def _is_etf(sector: str | None) -> bool:
-    """Detect ETFs by their sector label (set by scraper from Yahoo quoteType/sector)."""
-    return (sector or "").upper() == "ETF"
+_KNOWN_ETFS = {
+    "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "VEA", "VWO", "BND", "AGG",
+    "GLD", "SLV", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB",
+    "XLU", "XLRE", "IVV", "EFA", "EEM", "TLT", "HYG", "LQD", "ARKK", "ARKG",
+    "SCHD", "VIG", "VYM", "JEPI", "JEPQ", "VGT", "SOXX", "SMH", "IWF", "IWD",
+    "VTV", "VUG", "IJR", "IJH", "MDY", "RSP",
+}
+
+
+def _is_etf(symbol: str, sector: str | None) -> bool:
+    """Detect ETFs by sector label from Yahoo (primary) or known symbol list (fallback)."""
+    if (sector or "").upper() == "ETF":
+        return True
+    return symbol.upper() in _KNOWN_ETFS
 
 
 def _fetch_expense_ratio(symbol: str) -> float | None:
@@ -381,7 +392,7 @@ def portfolio_summary(
             total_cost += cost_basis
 
         # ETF expense ratio
-        is_etf = _is_etf(sector)
+        is_etf = _is_etf(symbol, sector)
         expense_ratio = None
         if is_etf:
             expense_ratio = _fetch_expense_ratio(symbol)

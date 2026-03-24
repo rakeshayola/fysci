@@ -21,7 +21,7 @@ class ScrapeStatus(BaseModel):
 
 YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
 YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
-YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile,quoteType"
 
 
 def _make_session():
@@ -166,8 +166,8 @@ def trigger_scrape():
                 sector = info.get("sector")
                 quote_type = info.get("quoteType", "")
                 if long_name or sector or quote_type == "ETF":
-                    update_parts = []
-                    params = {"stock_id": symbol_map[symbol]}
+                    update_parts: list = []
+                    params: dict = {"stock_id": symbol_map[symbol]}
                     if long_name:
                         update_parts.append("name = :name")
                         params["name"] = long_name
