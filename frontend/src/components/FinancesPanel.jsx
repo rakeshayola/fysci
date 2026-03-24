@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { fetchFinancials, triggerScrape } from "../api/stocks.js";
+import { fetchFinancials } from "../api/stocks.js";
 
 function fmt(value, type) {
   if (value == null) return "N/A";
@@ -15,11 +15,9 @@ function fmt(value, type) {
   return String(value);
 }
 
-export default function FinancesPanel({ selectedSymbols }) {
+export default function FinancesPanel({ selectedSymbols, scraping, onScrape }) {
   const [financials, setFinancials] = useState({});
   const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
-  const [scrapeMsg, setScrapeMsg] = useState("");
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {
@@ -44,30 +42,22 @@ export default function FinancesPanel({ selectedSymbols }) {
       .finally(() => setLoading(false));
   }, [selectedSymbols]);
 
-  const handleScrape = async () => {
-    setScraping(true);
-    setScrapeMsg("");
-    try {
-      const result = await triggerScrape();
-      setScrapeMsg(result.message);
-      // Re-fetch financials after scrape
-      const results = await Promise.all(
+  // Re-fetch financials after scrape completes
+  useEffect(() => {
+    if (scraping === false && selectedSymbols.length > 0) {
+      Promise.all(
         selectedSymbols.map((symbol) =>
           fetchFinancials(symbol).then((data) => ({ symbol, data }))
         )
-      );
-      const bySymbol = {};
-      results.forEach(({ symbol, data }) => {
-        bySymbol[symbol] = data;
-      });
-      setFinancials(bySymbol);
-    } catch {
-      setScrapeMsg("Scrape failed");
-    } finally {
-      setScraping(false);
-      setTimeout(() => setScrapeMsg(""), 5000);
+      ).then((results) => {
+        const bySymbol = {};
+        results.forEach(({ symbol, data }) => {
+          bySymbol[symbol] = data;
+        });
+        setFinancials(bySymbol);
+      }).catch(() => {});
     }
-  };
+  }, [scraping]);
 
   if (selectedSymbols.length === 0) {
     return (
@@ -86,10 +76,9 @@ export default function FinancesPanel({ selectedSymbols }) {
           Finances: {selectedSymbols.join(", ")}
         </span>
         <div className="toolbar-actions">
-          {scrapeMsg && <span className="toolbar-msg">{scrapeMsg}</span>}
           <button
             className="toolbar-btn"
-            onClick={handleScrape}
+            onClick={onScrape}
             disabled={scraping}
           >
             {scraping ? "Scraping..." : "Scrape Now"}

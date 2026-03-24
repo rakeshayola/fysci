@@ -1,12 +1,44 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
+from app.models import Stock
 from app.routers import stocks, widgets, financials, scraper, status, news, settings, agent, auth, portfolios, analysis
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Stock Dashboard API", version="0.1.0")
+SEED_INDICES = [
+    ("^GSPC", "S&P 500", "Index"),
+    ("^IXIC", "NASDAQ Composite", "Index"),
+    ("^DJI", "Dow Jones Industrial Average", "Index"),
+    ("^RUT", "Russell 2000", "Index"),
+    ("^VIX", "CBOE Volatility Index", "Index"),
+    ("^FTSE", "FTSE 100", "Index"),
+    ("^N225", "Nikkei 225", "Index"),
+]
+
+
+def _seed_indices():
+    db = SessionLocal()
+    try:
+        for symbol, name, sector in SEED_INDICES:
+            exists = db.query(Stock).filter(Stock.symbol == symbol).first()
+            if not exists:
+                db.add(Stock(symbol=symbol, name=name, sector=sector))
+        db.commit()
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    _seed_indices()
+    yield
+
+
+app = FastAPI(title="Stock Dashboard API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Widget from "./Widget.jsx";
-import { fetchWidgets, createWidget, deleteWidget, triggerScrape } from "../api/stocks.js";
+import { fetchWidgets, createWidget, deleteWidget } from "../api/stocks.js";
 
 const WIDGET_TEMPLATES = [
   { name: "Historic Close Price", widget_type: "history_chart", width: 3, height: 2 },
@@ -18,10 +18,8 @@ const TIMEFRAMES = [
   { label: "5Y", value: "5y", days: 1260 },
 ];
 
-export default function Dashboard({ selectedSymbols }) {
+export default function Dashboard({ selectedSymbols, scraping, onScrape }) {
   const [widgets, setWidgets] = useState([]);
-  const [scraping, setScraping] = useState(false);
-  const [scrapeMsg, setScrapeMsg] = useState("");
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [timeframe, setTimeframe] = useState(TIMEFRAMES[3]); // default 1Y
 
@@ -30,20 +28,6 @@ export default function Dashboard({ selectedSymbols }) {
       .then(setWidgets)
       .catch((err) => console.error(err));
   }, []);
-
-  const handleScrape = async () => {
-    setScraping(true);
-    setScrapeMsg("");
-    try {
-      const result = await triggerScrape();
-      setScrapeMsg(result.message);
-    } catch {
-      setScrapeMsg("Scrape failed");
-    } finally {
-      setScraping(false);
-      setTimeout(() => setScrapeMsg(""), 5000);
-    }
-  };
 
   const handleAddWidget = async (template) => {
     try {
@@ -90,10 +74,9 @@ export default function Dashboard({ selectedSymbols }) {
               </button>
             ))}
           </div>
-          {scrapeMsg && <span className="toolbar-msg">{scrapeMsg}</span>}
           <button
             className="toolbar-btn"
-            onClick={handleScrape}
+            onClick={onScrape}
             disabled={scraping}
           >
             {scraping ? "Scraping..." : "Scrape Now"}

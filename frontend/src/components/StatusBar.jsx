@@ -19,7 +19,7 @@ function formatDate(date) {
   });
 }
 
-export default function StatusBar({ selectedSymbols }) {
+export default function StatusBar({ selectedSymbols, scrapeStatus }) {
   const [now, setNow] = useState(new Date());
   const [status, setStatus] = useState(null);
 
@@ -70,6 +70,27 @@ export default function StatusBar({ selectedSymbols }) {
             : "--"}
         </span>
       </div>
+
+      {/* Live Scrape Status */}
+      {scrapeStatus && (
+        <div className={`status-widget status-scrape ${scrapeStatus.phase === "error" ? "status-scrape--error" : ""}`}>
+          <span className="status-label">
+            {scrapeStatus.phase === "done" ? "Scrape Complete" :
+             scrapeStatus.phase === "error" ? "Scrape Error" : "Scraping"}
+          </span>
+          <span className="status-value status-scrape-msg">
+            {(scrapeStatus.phase === "price" || scrapeStatus.phase === "financials") && (
+              <span className="scrape-progress-bar">
+                <span
+                  className="scrape-progress-fill"
+                  style={{ width: `${((scrapeStatus.current || 0) / (scrapeStatus.total || 1)) * 100}%` }}
+                />
+              </span>
+            )}
+            <span className="scrape-text">{scrapeStatus.message}</span>
+          </span>
+        </div>
+      )}
 
       {/* Exchange chips */}
       {status?.exchanges.map((ex) => (

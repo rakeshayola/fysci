@@ -568,6 +568,62 @@ body {
   font-size: 0.85rem;
 }
 
+/* Scrape progress in status bar */
+.status-scrape {
+  background: rgba(88, 166, 255, 0.08);
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  animation: scrape-pulse 1.5s ease-in-out infinite;
+}
+
+.status-scrape--error {
+  background: rgba(248, 81, 73, 0.08);
+  border-color: rgba(248, 81, 73, 0.25);
+  animation: none;
+}
+
+.status-scrape--error .status-label {
+  color: #f85149;
+}
+
+.status-scrape .status-label {
+  color: #58a6ff;
+}
+
+.status-scrape-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scrape-progress-bar {
+  width: 60px;
+  height: 4px;
+  background: #30363d;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scrape-progress-fill {
+  display: block;
+  height: 100%;
+  background: #58a6ff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.scrape-text {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes scrape-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 /* ===== News Panel ===== */
 
 .news-panel {
@@ -979,6 +1035,42 @@ body {
   font-size: 0.82rem;
   line-height: 1.5;
 }
+.markdown-body .md-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.markdown-body .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.markdown-body .md-table th,
+.markdown-body .md-table td {
+  border: 1px solid #30363d;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.markdown-body .md-table th {
+  background: #1c2128;
+  color: #f0f6fc;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.markdown-body .md-table td {
+  color: #e1e4e8;
+}
+.markdown-body .md-table tbody tr:nth-child(even) {
+  background: rgba(22, 27, 34, 0.5);
+}
+.markdown-body .md-table tbody tr:hover {
+  background: rgba(48, 54, 61, 0.5);
+}
+.markdown-body blockquote {
+  border-left: 3px solid #30363d;
+  padding: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  color: #8b949e;
+}
 .markdown-body hr {
   border: none;
   border-top: 1px solid #30363d;
@@ -1008,6 +1100,53 @@ body {
   background: rgba(63, 185, 80, 0.15);
   color: #3fb950;
   margin-right: 0.5rem;
+}
+
+/* ===== Portfolio Net Worth ===== */
+
+.portfolio-networth {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f0f6fc;
+  padding: 0.5rem 0;
+}
+
+/* ===== Prediction Dropdown ===== */
+
+.prediction-dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.prediction-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.25rem 0;
+  margin-top: 4px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  list-style: none;
+}
+
+.prediction-menu li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  color: #e1e4e8;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.prediction-menu li button:hover {
+  background: #30363d;
 }
 
 /* ===== Login Page ===== */
@@ -1140,5 +1279,63 @@ body {
 
 .portfolio-count {
   font-size: 0.75rem;
+  color: #8b949e;
+}
+
+/* ETF Badge */
+.etf-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(210, 168, 255, 0.15);
+  color: #d2a8ff;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.etf-fee {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #d2a8ff;
+}
+
+/* Sector Score Badges */
+.sector-score {
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.sector-score--high {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.sector-score--med {
+  background: rgba(227, 179, 65, 0.15);
+  color: #e3b341;
+}
+
+.sector-score--low {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.sector-score--high-growth {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.sector-score--med-growth {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+}
+
+.sector-score--low-growth {
+  background: rgba(139, 148, 158, 0.15);
   color: #8b949e;
 }

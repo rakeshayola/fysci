@@ -21,6 +21,29 @@ const PRESETS = [
   },
 ];
 
+const PREDICTION_HORIZONS = [
+  { label: "6 Months", value: "6 months" },
+  { label: "1 Year", value: "1 year" },
+  { label: "3 Years", value: "3 years" },
+  { label: "5 Years", value: "5 years" },
+];
+
+function buildPredictionQuery(horizon) {
+  return `Provide a price prediction for each stock over the next ${horizon}. For each stock, present three scenarios in a clear table or structured format:
+
+1. **Best Case (Bull)** — Maximum upside target price and % gain, with reasoning
+2. **Median Case (Base)** — Most likely target price and % change, with reasoning
+3. **Worst Case (Bear)** — Downside target price and % loss, with reasoning
+
+Base your analysis on:
+- Historical performance and trends relative to major indices (S&P 500, NASDAQ)
+- Current valuation metrics (P/E, forward P/E, growth rates)
+- Sector outlook and macroeconomic factors
+- Recent news sentiment and catalysts
+
+For each scenario, clearly state the **target price**, **expected % return**, and a brief rationale. Summarize with an overall outlook and confidence level.`;
+}
+
 export default function AgentPanel({ selectedSymbols }) {
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
@@ -31,6 +54,7 @@ export default function AgentPanel({ selectedSymbols }) {
   const [isCached, setIsCached] = useState(false);
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
 
   useEffect(() => {
     fetchSettings()
@@ -53,6 +77,7 @@ export default function AgentPanel({ selectedSymbols }) {
     setError("");
     setResult(null);
     setIsCached(false);
+    setShowPredictions(false);
     try {
       const res = await runAnalysis(selectedSymbols, customQuery);
       if (res.status === "completed") {
@@ -144,6 +169,34 @@ export default function AgentPanel({ selectedSymbols }) {
               {p.label}
             </button>
           ))}
+
+          {/* Prediction Dropdown */}
+          <div className="prediction-dropdown-wrap">
+            <button
+              className="toolbar-btn toolbar-btn--primary"
+              disabled={running}
+              onClick={() => setShowPredictions((v) => !v)}
+            >
+              Predictions &#9662;
+            </button>
+            {showPredictions && (
+              <ul className="prediction-menu">
+                {PREDICTION_HORIZONS.map((h) => (
+                  <li key={h.value}>
+                    <button
+                      disabled={running}
+                      onClick={() => {
+                        setShowPredictions(false);
+                        handleRun(buildPredictionQuery(h.value));
+                      }}
+                    >
+                      {h.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="agent-query-area">

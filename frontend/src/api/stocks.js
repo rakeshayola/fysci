@@ -43,6 +43,40 @@ export async function triggerScrape() {
   return res.json();
 }
 
+/**
+ * Stream scrape progress via SSE. Calls onEvent(data) for each event.
+ * Returns a promise that resolves with the final "done" event data.
+ */
+export async function triggerScrapeStream(onEvent) {
+  const res = await fetch(`${BASE}/scraper/run-stream`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to trigger scrape");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastData = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE lines
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          lastData = data;
+          if (onEvent) onEvent(data);
+        } catch { /* ignore parse errors */ }
+      }
+    }
+  }
+  return lastData;
+}
+
 export async function fetchMarketStatus() {
   const res = await fetch(`${BASE}/status/`);
   if (!res.ok) throw new Error("Failed to fetch market status");
@@ -166,6 +200,12 @@ export async function removeHolding(portfolioId, holdingId) {
   if (!res.ok) throw new Error("Failed to remove holding");
 }
 
+export async function fetchPortfolioSummary(portfolioId) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/summary`);
+  if (!res.ok) throw new Error("Failed to fetch portfolio summary");
+  return res.json();
+}
+
 export async function uploadHoldings(portfolioId, file, mapping) {
   const formData = new FormData();
   formData.append("file", file);
@@ -175,6 +215,17 @@ export async function uploadHoldings(portfolioId, file, mapping) {
     body: formData,
   });
   if (!res.ok) throw new Error("Upload failed");
+  return res.json();
+}
+
+export async function fetchSectorAnalysis(portfolioId) {
+  const res = await authFetch(`${BASE}/portfolios/${portfolioId}/sector-analysis`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Sector analysis failed" }));
+    throw new Error(err.detail || "Sector analysis failed");
+  }
   return res.json();
 }
 

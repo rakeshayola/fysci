@@ -1,9 +1,11 @@
+import json
 import logging
 import time
 from datetime import datetime, timezone
 
 from curl_cffi.requests import Session as CffiSession
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -21,7 +23,7 @@ class ScrapeStatus(BaseModel):
 
 YAHOO_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
 YAHOO_QUOTE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
-YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile"
+YAHOO_MODULES = "defaultKeyStatistics,financialData,summaryDetail,assetProfile,quoteType"
 
 
 def _make_session():
@@ -161,6 +163,29 @@ def trigger_scrape():
                 if not info:
                     continue
 
+                # Update stock name and sector from Yahoo data
+                long_name = info.get("longName") or info.get("shortName")
+                sector = info.get("sector")
+                quote_type = info.get("quoteType", "")
+                if long_name or sector or quote_type == "ETF":
+                    update_parts: list = []
+                    params: dict = {"stock_id": symbol_map[symbol]}
+                    if long_name:
+                        update_parts.append("name = :name")
+                        params["name"] = long_name
+                    if sector:
+                        update_parts.append("sector = :sector")
+                        params["sector"] = sector
+                    elif quote_type == "ETF":
+                        update_parts.append("sector = :sector")
+                        params["sector"] = "ETF"
+                    if update_parts:
+                        with engine.begin() as conn:
+                            conn.execute(
+                                text(f"UPDATE stocks SET {', '.join(update_parts)} WHERE id = :stock_id"),
+                                params,
+                            )
+
                 fin_data = {
                     "stock_id": symbol_map[symbol],
                     "pe_ratio": info.get("trailingPE"),
@@ -209,3 +234,160 @@ def trigger_scrape():
 
     except Exception as e:
         return ScrapeStatus(status="error", message=str(e))
+
+
+def _sse_event(data: dict) -> str:
+    return f"data: {json.dumps(data)}\n\n"
+
+
+@router.post("/run-stream")
+def trigger_scrape_stream():
+    """SSE streaming version of scrape — sends progress events per symbol."""
+
+    def generate():
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(text("SELECT id, symbol FROM stocks ORDER BY symbol"))
+                symbol_map = {r[1]: r[0] for r in rows}
+
+            if not symbol_map:
+                yield _sse_event({"phase": "done", "message": "No stocks to scrape"})
+                return
+
+            symbols = list(symbol_map.keys())
+            total = len(symbols)
+            http_session = _make_session()
+            price_count = 0
+            fin_count = 0
+
+            yield _sse_event({
+                "phase": "start",
+                "total": total,
+                "symbols": symbols,
+                "message": f"Scraping {total} stocks...",
+            })
+
+            # Obtain crumb
+            try:
+                crumb = _get_yahoo_crumb(http_session)
+            except Exception:
+                logger.exception("Failed to obtain Yahoo crumb")
+                yield _sse_event({"phase": "error", "message": "Failed to obtain Yahoo crumb"})
+                return
+
+            # --- Prices ---
+            for i, symbol in enumerate(symbols):
+                yield _sse_event({
+                    "phase": "price",
+                    "symbol": symbol,
+                    "current": i + 1,
+                    "total": total,
+                    "message": f"Fetching prices for {symbol} ({i + 1}/{total})",
+                })
+                try:
+                    chart_rows = _fetch_chart(symbol, http_session, crumb, "5y")
+                    if chart_rows:
+                        with engine.begin() as conn:
+                            for r in chart_rows:
+                                conn.execute(
+                                    text("""
+                                        INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+                                        VALUES (:stock_id, :date, :open, :high, :low, :close, :volume)
+                                        ON CONFLICT (stock_id, date)
+                                        DO UPDATE SET open=EXCLUDED.open, high=EXCLUDED.high,
+                                                      low=EXCLUDED.low, close=EXCLUDED.close,
+                                                      volume=EXCLUDED.volume
+                                    """),
+                                    {"stock_id": symbol_map[symbol], **r},
+                                )
+                        price_count += 1
+                except Exception:
+                    logger.exception(f"Error processing prices for {symbol}")
+                time.sleep(1)
+
+            # --- Financials ---
+            for i, symbol in enumerate(symbols):
+                yield _sse_event({
+                    "phase": "financials",
+                    "symbol": symbol,
+                    "current": i + 1,
+                    "total": total,
+                    "message": f"Fetching financials for {symbol} ({i + 1}/{total})",
+                })
+                try:
+                    info = _fetch_yahoo_info(symbol, http_session, crumb)
+                    if not info:
+                        continue
+
+                    long_name = info.get("longName") or info.get("shortName")
+                    sector = info.get("sector")
+                    quote_type = info.get("quoteType", "")
+                    if long_name or sector or quote_type == "ETF":
+                        update_parts: list = []
+                        params: dict = {"stock_id": symbol_map[symbol]}
+                        if long_name:
+                            update_parts.append("name = :name")
+                            params["name"] = long_name
+                        if sector:
+                            update_parts.append("sector = :sector")
+                            params["sector"] = sector
+                        elif quote_type == "ETF":
+                            update_parts.append("sector = :sector")
+                            params["sector"] = "ETF"
+                        if update_parts:
+                            with engine.begin() as conn:
+                                conn.execute(
+                                    text(f"UPDATE stocks SET {', '.join(update_parts)} WHERE id = :stock_id"),
+                                    params,
+                                )
+
+                    fin_data = {
+                        "stock_id": symbol_map[symbol],
+                        "pe_ratio": info.get("trailingPE"),
+                        "forward_pe": info.get("forwardPE"),
+                        "market_cap": info.get("marketCap"),
+                        "total_debt": info.get("totalDebt"),
+                        "total_revenue": info.get("totalRevenue"),
+                        "operating_expense": info.get("operatingExpenses") or info.get("totalOperatingExpenses"),
+                        "capital_expenditure": abs(info.get("capitalExpenditures") or info.get("capitalExpenditure") or 0) or None,
+                        "num_employees": info.get("fullTimeEmployees"),
+                        "earnings_per_share": info.get("trailingEps"),
+                    }
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text("""
+                                INSERT INTO stock_financials
+                                    (stock_id, pe_ratio, forward_pe, market_cap, total_debt,
+                                     total_revenue, operating_expense, capital_expenditure,
+                                     num_employees, earnings_per_share)
+                                VALUES
+                                    (:stock_id, :pe_ratio, :forward_pe, :market_cap, :total_debt,
+                                     :total_revenue, :operating_expense, :capital_expenditure,
+                                     :num_employees, :earnings_per_share)
+                                ON CONFLICT (stock_id)
+                                DO UPDATE SET
+                                    pe_ratio=EXCLUDED.pe_ratio, forward_pe=EXCLUDED.forward_pe,
+                                    market_cap=EXCLUDED.market_cap, total_debt=EXCLUDED.total_debt,
+                                    total_revenue=EXCLUDED.total_revenue,
+                                    operating_expense=EXCLUDED.operating_expense,
+                                    capital_expenditure=EXCLUDED.capital_expenditure,
+                                    num_employees=EXCLUDED.num_employees,
+                                    earnings_per_share=EXCLUDED.earnings_per_share,
+                                    updated_at=NOW()
+                            """),
+                            fin_data,
+                        )
+                    fin_count += 1
+                except Exception:
+                    logger.exception(f"Error scraping financials for {symbol}")
+                time.sleep(1)
+
+            yield _sse_event({
+                "phase": "done",
+                "message": f"Prices: {price_count}/{total}, Financials: {fin_count}/{total}",
+            })
+
+        except Exception as e:
+            yield _sse_event({"phase": "error", "message": str(e)})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
