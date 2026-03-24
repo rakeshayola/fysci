@@ -568,6 +568,62 @@ body {
   font-size: 0.85rem;
 }
 
+/* Scrape progress in status bar */
+.status-scrape {
+  background: rgba(88, 166, 255, 0.08);
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  animation: scrape-pulse 1.5s ease-in-out infinite;
+}
+
+.status-scrape--error {
+  background: rgba(248, 81, 73, 0.08);
+  border-color: rgba(248, 81, 73, 0.25);
+  animation: none;
+}
+
+.status-scrape--error .status-label {
+  color: #f85149;
+}
+
+.status-scrape .status-label {
+  color: #58a6ff;
+}
+
+.status-scrape-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scrape-progress-bar {
+  width: 60px;
+  height: 4px;
+  background: #30363d;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scrape-progress-fill {
+  display: block;
+  height: 100%;
+  background: #58a6ff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.scrape-text {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes scrape-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 /* ===== News Panel ===== */
 
 .news-panel {

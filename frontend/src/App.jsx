@@ -9,7 +9,7 @@ import AgentPanel from "./components/AgentPanel.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import PortfolioManager from "./components/PortfolioManager.jsx";
 import StatusBar from "./components/StatusBar.jsx";
-import { fetchStocks, fetchPortfolios } from "./api/stocks.js";
+import { fetchStocks, fetchPortfolios, triggerScrapeStream } from "./api/stocks.js";
 import "./App.css";
 
 function AppContent() {
@@ -19,6 +19,25 @@ function AppContent() {
   const [selectedSymbols, setSelectedSymbols] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+  const [scraping, setScraping] = useState(false);
+  const [scrapeStatus, setScrapeStatus] = useState(null); // { phase, message, symbol, current, total }
+
+  const handleScrape = async () => {
+    if (scraping) return;
+    setScraping(true);
+    setScrapeStatus({ phase: "start", message: "Starting scrape..." });
+    try {
+      await triggerScrapeStream((event) => {
+        setScrapeStatus(event);
+      });
+    } catch {
+      setScrapeStatus({ phase: "error", message: "Scrape failed" });
+    } finally {
+      setScraping(false);
+      // Clear after 6 seconds
+      setTimeout(() => setScrapeStatus(null), 6000);
+    }
+  };
 
   const loadData = () => {
     if (!user) return;
@@ -126,14 +145,14 @@ function AppContent() {
           selectedSymbols={selectedSymbols}
           onToggle={toggleStock}
         />
-        {activeTab === "dashboard" && <Dashboard selectedSymbols={selectedSymbols} />}
-        {activeTab === "finances" && <FinancesPanel selectedSymbols={selectedSymbols} />}
+        {activeTab === "dashboard" && <Dashboard selectedSymbols={selectedSymbols} scraping={scraping} onScrape={handleScrape} />}
+        {activeTab === "finances" && <FinancesPanel selectedSymbols={selectedSymbols} scraping={scraping} onScrape={handleScrape} />}
         {activeTab === "news" && <NewsPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "agent" && <AgentPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "portfolio" && <PortfolioManager onChanged={loadData} />}
         {activeTab === "settings" && <SettingsPanel />}
       </div>
-      <StatusBar selectedSymbols={selectedSymbols} />
+      <StatusBar selectedSymbols={selectedSymbols} scrapeStatus={scrapeStatus} />
     </div>
   );
 }

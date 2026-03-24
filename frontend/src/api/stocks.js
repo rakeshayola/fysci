@@ -43,6 +43,40 @@ export async function triggerScrape() {
   return res.json();
 }
 
+/**
+ * Stream scrape progress via SSE. Calls onEvent(data) for each event.
+ * Returns a promise that resolves with the final "done" event data.
+ */
+export async function triggerScrapeStream(onEvent) {
+  const res = await fetch(`${BASE}/scraper/run-stream`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to trigger scrape");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastData = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE lines
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          lastData = data;
+          if (onEvent) onEvent(data);
+        } catch { /* ignore parse errors */ }
+      }
+    }
+  }
+  return lastData;
+}
+
 export async function fetchMarketStatus() {
   const res = await fetch(`${BASE}/status/`);
   if (!res.ok) throw new Error("Failed to fetch market status");
