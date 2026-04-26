@@ -2,10 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.database import engine, Base, SessionLocal
 from app.models import Stock
-from app.routers import stocks, widgets, financials, scraper, status, news, settings, agent, auth, portfolios, analysis
+from app.routers import stocks, widgets, financials, scraper, status, news, settings, agent, auth, portfolios, analysis, admin
 
 Base.metadata.create_all(bind=engine)
 
@@ -18,6 +19,22 @@ SEED_INDICES = [
     ("^FTSE", "FTSE 100", "Index"),
     ("^N225", "Nikkei 225", "Index"),
 ]
+
+
+def _migrate_users_table():
+    """Add new columns to users table if they don't exist (for existing DBs)."""
+    with engine.connect() as conn:
+        for col, definition in [
+            ("is_locked", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("is_approved", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("is_admin", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("reset_token", "VARCHAR(64)"),
+            ("reset_token_expiry", "TIMESTAMP"),
+        ]:
+            conn.execute(text(
+                f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}"
+            ))
+        conn.commit()
 
 
 def _seed_indices():
@@ -34,6 +51,7 @@ def _seed_indices():
 
 @asynccontextmanager
 async def lifespan(app):
+    _migrate_users_table()
     _seed_indices()
     yield
 
@@ -59,6 +77,7 @@ app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(portfolios.router, prefix="/api/portfolios", tags=["portfolios"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 
 @app.get("/api/health")

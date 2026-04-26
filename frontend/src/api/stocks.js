@@ -229,6 +229,63 @@ export async function fetchSectorAnalysis(portfolioId) {
   return res.json();
 }
 
+// --- Admin ---
+
+export async function fetchAdminUsers() {
+  const res = await authFetch(`${BASE}/admin/users`);
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
+}
+
+export async function toggleLockUser(userId) {
+  const res = await authFetch(`${BASE}/admin/users/${userId}/lock`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to toggle lock");
+  return res.json();
+}
+
+export async function approveUser(userId) {
+  const res = await authFetch(`${BASE}/admin/users/${userId}/approve`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to approve user");
+  return res.json();
+}
+
+export async function deleteAdminUser(userId) {
+  const res = await authFetch(`${BASE}/admin/users/${userId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete user");
+  return res.json();
+}
+
+export async function toggleAdminRole(userId) {
+  const res = await authFetch(`${BASE}/admin/users/${userId}/toggle-admin`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to toggle admin");
+  return res.json();
+}
+
+export async function fetchAdminAnalytics() {
+  const res = await authFetch(`${BASE}/admin/analytics`);
+  if (!res.ok) throw new Error("Failed to fetch analytics");
+  return res.json();
+}
+
+export async function generateResetToken(userId) {
+  const res = await authFetch(`${BASE}/admin/users/${userId}/generate-reset-token`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to generate reset token");
+  return res.json();
+}
+
+export async function resetPassword(email, token, newPassword) {
+  const res = await fetch(`${BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, token, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Reset failed" }));
+    throw new Error(err.detail || "Reset failed");
+  }
+  return res.json();
+}
+
 // --- Analysis ---
 
 export async function runAnalysis(symbols, query) {

@@ -158,9 +158,39 @@ class UserOut(BaseModel):
     email: str
     username: str
     is_active: bool
+    is_locked: bool = False
+    is_approved: bool = True
+    is_admin: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    email: str
+    username: str
+    is_active: bool
+    is_locked: bool = False
+    is_approved: bool = True
+    is_admin: bool = False
+    created_at: datetime
+    portfolio_count: int = 0
+    stock_count: int = 0
+    total_value: float = 0.0
+
+    model_config = {"from_attributes": True}
+
+
+class AdminAnalytics(BaseModel):
+    total_users: int
+    active_users: int
+    locked_users: int
+    pending_approval: int
+    total_portfolios: int
+    total_holdings: int
+    most_tracked_stocks: list[dict]
+    registrations_over_time: list[dict]
 
 
 class TokenResponse(BaseModel):

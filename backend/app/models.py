@@ -106,6 +106,11 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
+    is_locked = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    reset_token = Column(String(64), nullable=True)
+    reset_token_expiry = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     portfolios = relationship("Portfolio", back_populates="owner")

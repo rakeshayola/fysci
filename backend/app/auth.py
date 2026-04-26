@@ -62,7 +62,17 @@ def get_current_user(
     if user is None:
         logger.warning("Auth failed: user_id=%s not found in database", user_id)
         raise HTTPException(status_code=401, detail="User not found")
+    if getattr(user, "is_locked", False):
+        raise HTTPException(status_code=403, detail="Account is locked")
+    if not getattr(user, "is_approved", True):
+        raise HTTPException(status_code=403, detail="Account pending approval")
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 def get_optional_user(

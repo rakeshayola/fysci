@@ -8,6 +8,7 @@ import NewsPanel from "./components/NewsPanel.jsx";
 import AgentPanel from "./components/AgentPanel.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import PortfolioManager from "./components/PortfolioManager.jsx";
+import AdminPanel from "./components/AdminPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import { fetchStocks, fetchPortfolios, triggerScrapeStream } from "./api/stocks.js";
 import "./App.css";
@@ -130,6 +131,14 @@ function AppContent() {
           >
             Settings
           </button>
+          {user.is_admin && (
+            <button
+              className={`tab-btn tab-btn--admin ${activeTab === "admin" ? "tab-btn--active" : ""}`}
+              onClick={() => setActiveTab("admin")}
+            >
+              Admin
+            </button>
+          )}
         </nav>
         <div className="header-user">
           <span className="header-username">{user.username}</span>
@@ -151,6 +160,7 @@ function AppContent() {
         {activeTab === "agent" && <AgentPanel selectedSymbols={selectedSymbols} />}
         {activeTab === "portfolio" && <PortfolioManager onChanged={loadData} />}
         {activeTab === "settings" && <SettingsPanel />}
+        {activeTab === "admin" && user.is_admin && <AdminPanel />}
       </div>
       <StatusBar selectedSymbols={selectedSymbols} scrapeStatus={scrapeStatus} />
     </div>
