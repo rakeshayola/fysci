@@ -28,7 +28,7 @@ def _migrate_users_table():
             ("is_locked", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("is_approved", "BOOLEAN NOT NULL DEFAULT TRUE"),
             ("is_admin", "BOOLEAN NOT NULL DEFAULT FALSE"),
-            ("reset_token", "VARCHAR(64)"),
+            ("reset_token", "VARCHAR(128)"),
             ("reset_token_expiry", "TIMESTAMP"),
         ]:
             conn.execute(text(

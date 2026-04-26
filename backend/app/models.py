@@ -109,7 +109,7 @@ class User(Base):
     is_locked = Column(Boolean, default=False)
     is_approved = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    reset_token = Column(String(64), nullable=True)
+    reset_token = Column(String(128), nullable=True)
     reset_token_expiry = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

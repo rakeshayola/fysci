@@ -63,10 +63,17 @@ class ResetPasswordRequest(BaseModel):
 @router.post("/reset-password")
 def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == req.email).first()
-    if not user or not user.reset_token or user.reset_token != req.token:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    if not user:
+        raise HTTPException(status_code=400, detail="No account found with that email address")
+    if not user.reset_token:
+        raise HTTPException(status_code=400, detail="No reset token has been generated for this account. Ask an admin to generate one.")
     if user.reset_token_expiry and user.reset_token_expiry < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Reset token has expired")
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="Reset token has expired. Ask an admin to generate a new one.")
+    if user.reset_token.strip() != req.token.strip():
+        raise HTTPException(status_code=400, detail="Reset token does not match. Make sure you copied it correctly.")
     if len(req.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     user.hashed_password = hash_password(req.new_password)

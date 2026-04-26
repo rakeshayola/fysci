@@ -349,6 +349,34 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {/* Reset token modal */}
+      {resetTokenData && (
+        <div className="admin-modal-overlay" onClick={() => setResetTokenData(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Password Reset Token</h3>
+            <p>
+              Share this token with <strong>{resetTokenData.username}</strong>. It expires in{" "}
+              <strong>{resetTokenData.expires_in}</strong>. The user will enter it on the login
+              page along with their email and new password.
+            </p>
+            <div className="admin-token-box">
+              <code>{resetTokenData.token}</code>
+              <button
+                className="admin-btn admin-btn--promote"
+                onClick={() => navigator.clipboard.writeText(resetTokenData.token)}
+              >
+                Copy
+              </button>
+            </div>
+            <div className="admin-modal-actions">
+              <button className="toolbar-btn toolbar-btn--primary" onClick={() => setResetTokenData(null)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {confirmDelete && (
         <div className="admin-modal-overlay" onClick={() => setConfirmDelete(null)}>
